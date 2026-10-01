@@ -7,8 +7,11 @@ function escapeHtml(value) {
 
 function clearEdit(form) {
   delete form.dataset.editId;
-  form.querySelector('h2').textContent = form.id === 'inventory' ? 'Inventory details' : form.id[0].toUpperCase() + form.id.slice(1);
-  form.querySelector('[type="submit"]').textContent = `Save ${form.id}`;
+  const titles = {inventory: 'Inventory details', user: 'Create user'};
+  const buttons = {user: 'Create user'};
+  form.querySelector('h2').textContent = titles[form.id] || form.id[0].toUpperCase() + form.id.slice(1);
+  form.querySelector('[type="submit"]').textContent = buttons[form.id] || `Save ${form.id}`;
+  if (form.id === 'user') form.querySelectorAll('[name="password"], [name="confirmPassword"]').forEach(field => field.required = true);
 }
 
 function fillSelect(selector, items, placeholder) {
@@ -33,7 +36,7 @@ async function loadRecords() {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Could not load records.');
     const labels = {clients: 'Clients', stores: 'Stores', employees: 'Employees', inventories: 'Inventories', users: 'User accounts'};
-    const editable = {clients: 'client', stores: 'store', employees: 'employee', inventories: 'inventory'};
+    const editable = {clients: 'client', stores: 'store', employees: 'employee', inventories: 'inventory', users: 'user'};
     container.innerHTML = Object.entries(data).map(([key, records]) => {
       const headers = records[0] ? Object.keys(records[0]) : [];
       const actionHeader = editable[key] ? '<th>Actions</th>' : '';
@@ -58,6 +61,7 @@ async function editRecord(type, id) {
     form.dataset.editId = id;
     form.querySelector('h2').textContent = `Edit ${type} #${id}`;
     form.querySelector('[type="submit"]').textContent = 'Save changes';
+    if (type === 'user') form.querySelectorAll('[name="password"], [name="confirmPassword"]').forEach(field => field.required = false);
     document.querySelectorAll('nav button, form, section.form-card').forEach(el => el.classList.remove('active'));
     document.querySelector(`nav button[data-form="${type}"]`).classList.add('active');
     form.classList.add('active');
@@ -90,6 +94,7 @@ forms.forEach(form => form.addEventListener('submit', async event => {
   notice.textContent = 'Saving…';
   try {
     const payload = Object.fromEntries(new FormData(form));
+    if (form.id === 'user' && payload.password !== payload.confirmPassword) throw new Error('Passwords do not match.');
     const editId = form.dataset.editId;
     const response = await fetch(`/api/${form.id}${editId ? `/${editId}` : ''}`, {method: editId ? 'PUT' : 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
     const data = await response.json();
