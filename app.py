@@ -76,7 +76,7 @@ FIELDS = {
     "client": (("ClientName", "clientName"), ("ContactName", "contactName"), ("Phone", "phone"), ("Email", "email"), ("BillingAddress", "billingAddress"), ("Status", "status")),
     "store": (("ClientId", "clientId"), ("StoreName", "storeName"), ("Address", "address"), ("City", "city"), ("State", "state"), ("Zip", "zip")),
     "employee": (("FirstName", "firstName"), ("LastName", "lastName"), ("Email", "email"), ("Phone", "phone")),
-    "inventory": tuple(zip("StoreId,PartsManager,InventoryDate,PieceCount,TotalValue,VarianceCount,WriteInCount,InventoryCost,InventoryLeadId,HoursWorked,CrewSize,Status,Notes,Type,ComputerSystem".split(","), "storeId,partsManager,inventoryDate,pieceCount,totalValue,varianceCount,writeInCount,inventoryCost,inventoryLeadId,hoursWorked,crewSize,status,notes,type,computerSystem".split(","))),
+    "inventory": tuple(zip("StoreId,PartsManager,InventoryDate,PieceCount,TotalValue,VarianceCount,WriteInCount,Discount,InventoryCost,InventoryLeadId,HoursWorked,CrewSize,Status,Notes,Type,ComputerSystem".split(","), "storeId,partsManager,inventoryDate,pieceCount,totalValue,varianceCount,writeInCount,discount,inventoryCost,inventoryLeadId,hoursWorked,crewSize,status,notes,type,computerSystem".split(","))),
 }
 PRIMARY_KEYS = {"client": "ClientId", "store": "StoreId", "employee": "EmployeeId", "inventory": "InventoryId"}
 
@@ -91,7 +91,7 @@ def values_for(record_type, data):
     if record_type == "inventory":
         inventory_date = required(data, "inventoryDate")
         date.fromisoformat(inventory_date)
-        return [integer(data, "storeId", True), esc(data.get("partsManager")), esc(inventory_date), integer(data, "pieceCount", True), money(data, "totalValue"), integer(data, "varianceCount"), integer(data, "writeInCount"), money(data, "inventoryCost", True), integer(data, "inventoryLeadId"), money(data, "hoursWorked"), integer(data, "crewSize"), esc(data.get("status") or "Completed"), esc(data.get("notes")), esc(data.get("type") or "Inventory"), esc(data.get("computerSystem"))]
+        return [integer(data, "storeId", True), esc(data.get("partsManager")), esc(inventory_date), integer(data, "pieceCount", True), money(data, "totalValue"), integer(data, "varianceCount"), integer(data, "writeInCount"), integer(data, "discount") or 0, money(data, "inventoryCost", True), integer(data, "inventoryLeadId"), money(data, "hoursWorked"), integer(data, "crewSize"), esc(data.get("status") or "Completed"), esc(data.get("notes")), esc(data.get("type") or "Inventory"), esc(data.get("computerSystem"))]
     raise ValueError("Unknown endpoint.")
 
 
@@ -126,10 +126,41 @@ def records():
             clients=rows("SELECT ClientId, ClientName, ContactName, Phone, Email, BillingAddress, Status FROM client ORDER BY ClientName", ["ID", "Client", "Contact", "Phone", "Email", "Billing address", "Status"]),
             stores=rows("SELECT s.StoreId, s.StoreName, c.ClientName, s.Address, s.City, s.State, s.Zip FROM store s LEFT JOIN client c ON c.ClientId = s.ClientId ORDER BY s.StoreName", ["ID", "Store", "Client", "Address", "City", "State", "ZIP"]),
             employees=rows("SELECT EmployeeId, FirstName, LastName, Email, Phone, IF(Active = b'1', 'Yes', 'No') FROM employee ORDER BY LastName, FirstName", ["ID", "First name", "Last name", "Email", "Phone", "Active"]),
-            inventories=rows("SELECT i.InventoryId, s.StoreName, i.PartsManager, i.InventoryDate, i.PieceCount, i.TotalValue, i.VarianceCount, i.WriteInCount, i.InventoryCost, CONCAT(e.FirstName, ' ', e.LastName), i.HoursWorked, i.CrewSize, i.Status, i.Type, i.ComputerSystem, i.Notes FROM inventory i JOIN store s ON s.StoreId = i.StoreId LEFT JOIN employee e ON e.EmployeeId = i.InventoryLeadId ORDER BY i.InventoryDate DESC, i.InventoryId DESC", ["ID", "Store", "Parts manager", "Date", "Pieces", "Total value", "Variance", "Write-ins", "Cost", "Inventory lead", "Hours", "Crew", "Status", "Type", "System", "Notes"]),
+            inventories=rows("SELECT i.InventoryId, s.StoreName, i.PartsManager, i.InventoryDate, i.PieceCount, i.TotalValue, i.VarianceCount, i.WriteInCount, i.Discount, i.InventoryCost, CONCAT(e.FirstName, ' ', e.LastName), i.HoursWorked, i.CrewSize, i.Status, i.Type, i.ComputerSystem, i.Notes FROM inventory i JOIN store s ON s.StoreId = i.StoreId LEFT JOIN employee e ON e.EmployeeId = i.InventoryLeadId ORDER BY i.InventoryDate DESC, i.InventoryId DESC", ["ID", "Store", "Parts manager", "Date", "Pieces", "Total value", "Variance", "Write-ins", "Discount", "Cost", "Inventory lead", "Hours", "Crew", "Status", "Type", "System", "Notes"]),
             users=rows("SELECT UserId, Username, FirstName, LastName, Email, IF(Active = b'1', 'Yes', 'No') FROM user ORDER BY Username", ["ID", "Username", "First name", "Last name", "Email", "Active"]))
     except ValueError as exc:
         return error(exc, 500)
+
+
+@app.get("/api/calendar")
+def calendar_events():
+    """Return compact inventory events for the calendar page."""
+    try:
+        return jsonify(rows("SELECT i.InventoryId, i.InventoryDate, s.StoreName, i.Status, i.PieceCount, i.TotalValue, i.Discount, COALESCE(CONCAT(e.FirstName, ' ', e.LastName), '') FROM inventory i JOIN store s ON s.StoreId = i.StoreId LEFT JOIN employee e ON e.EmployeeId = i.InventoryLeadId ORDER BY i.InventoryDate, s.StoreName", ["id", "date", "store", "status", "pieceCount", "totalValue", "discount", "lead"]))
+    except ValueError as exc:
+        return error(exc, 500)
+
+
+@app.get("/api/store-chart")
+def store_chart():
+    """Return monthly totals grouped by year for a selected store and metric."""
+    metrics = {
+        "totalValue": ("Total value", "TotalValue"),
+        "pieceCount": ("Piece count", "PieceCount"),
+        "inventoryCost": ("Inventory cost", "InventoryCost"),
+        "varianceCount": ("Variance count", "VarianceCount"),
+        "discount": ("Discount", "Discount"),
+    }
+    try:
+        store_id = int(request.args.get("storeId", ""))
+        metric_key = request.args.get("metric", "totalValue")
+        if metric_key not in metrics:
+            raise ValueError("Unknown chart metric.")
+        label, column = metrics[metric_key]
+        data = rows(f"SELECT YEAR(InventoryDate), MONTH(InventoryDate), SUM(COALESCE({column}, 0)) FROM inventory WHERE StoreId = {store_id} GROUP BY YEAR(InventoryDate), MONTH(InventoryDate) ORDER BY YEAR(InventoryDate), MONTH(InventoryDate)", ["year", "month", "value"])
+        return jsonify(metric=metric_key, label=label, data=data)
+    except (TypeError, ValueError) as exc:
+        return error(exc)
 
 
 @app.get("/api/edit/<record_type>/<int:record_id>")

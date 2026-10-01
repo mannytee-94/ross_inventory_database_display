@@ -1,0 +1,2 @@
+ALTER TABLE inventory
+  ADD COLUMN Discount INT NOT NULL DEFAULT 0 AFTER WriteInCount;

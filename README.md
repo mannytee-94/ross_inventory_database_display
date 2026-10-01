@@ -30,8 +30,13 @@ The included `Dockerfile` builds the Flask app and its MySQL/MariaDB client. In 
 - New employee
 - Create user accounts with server-side password hashing
 - Edit usernames and profile details, with an optional password reset
+- Browse all inventories on a month-by-month calendar
 - View saved clients, stores, employees, inventories, and user-account details
 - Edit any existing client, store, employee, or inventory record from the saved-data view
 
-User-account creation is deliberately excluded because the schema requires securely generated password hashes; this app never handles passwords.
+User passwords are securely hashed before storage and are never displayed by the app.
+
+## Database migration
+
+Before using the Discount field, apply `migrations/001_add_inventory_discount.sql` once to the `ross_inventories` database. It adds a non-null integer `Discount` column with a default value of `0`, preserving all existing inventory rows.
 # ross_inventory_database_display

@@ -1,5 +1,7 @@
 const notice = document.querySelector('#notice');
 const forms = [...document.querySelectorAll('form')];
+let calendarEvents = [];
+let calendarMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
@@ -26,6 +28,7 @@ async function refreshOptions() {
   fillSelect('#inventory [name="storeId"]', data.stores, 'Select a store');
   fillSelect('#inventory [name="inventoryLeadId"]', data.employees, 'Select lead (optional)');
   fillSelect('#store [name="clientId"]', data.clients, 'No client assigned');
+  fillSelect('#chart-store', data.stores, 'Select a store');
 }
 
 async function loadRecords() {
@@ -44,6 +47,125 @@ async function loadRecords() {
       return `<details open><summary>${labels[key]} <span>${records.length}</span></summary><div class="table-wrap">${table}</div></details>`;
     }).join('');
   } catch (error) { container.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`; }
+}
+
+function renderCalendar() {
+  const grid = document.querySelector('#calendar-grid');
+  const title = document.querySelector('#calendar-title');
+  const year = calendarMonth.getFullYear();
+  const month = calendarMonth.getMonth();
+  title.textContent = calendarMonth.toLocaleDateString(undefined, {month: 'long', year: 'numeric'});
+  const firstWeekday = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const eventsByDate = calendarEvents.reduce((dates, event) => {
+    (dates[event.date] ||= []).push(event);
+    return dates;
+  }, {});
+  const cells = [];
+  for (let index = 0; index < firstWeekday + daysInMonth; index += 1) {
+    const day = index - firstWeekday + 1;
+    if (day < 1) { cells.push('<div class="calendar-day empty-day"></div>'); continue; }
+    const isoDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const events = eventsByDate[isoDate] || [];
+    cells.push(`<div class="calendar-day"><span class="calendar-date">${day}</span>${events.map(event => `<button class="calendar-event" type="button" data-id="${escapeHtml(event.id)}">${escapeHtml(event.store)}</button>`).join('')}</div>`);
+  }
+  grid.innerHTML = cells.join('');
+}
+
+async function loadCalendar() {
+  const grid = document.querySelector('#calendar-grid');
+  grid.innerHTML = '<p class="calendar-loading">Loading inventories…</p>';
+  try {
+    const response = await fetch('/api/calendar');
+    calendarEvents = await response.json();
+    if (!response.ok) throw new Error(calendarEvents.error || 'Could not load inventories.');
+    renderCalendar();
+  } catch (error) { grid.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`; }
+}
+
+function formatChartValue(value, metric) {
+  return metric === 'totalValue' || metric === 'inventoryCost' ? `$${Number(value).toLocaleString(undefined, {maximumFractionDigits: 0})}` : Number(value).toLocaleString();
+}
+
+function drawStoreChart(result, style) {
+  const canvas = document.querySelector('#store-chart');
+  const legend = document.querySelector('#chart-legend');
+  const empty = document.querySelector('#chart-empty');
+  const data = result.data || [];
+  empty.textContent = data.length ? '' : 'No inventory results are available for this store.';
+  empty.hidden = Boolean(data.length);
+  legend.innerHTML = '';
+  const ctx = canvas.getContext('2d');
+  const width = canvas.clientWidth || 900;
+  const height = 420;
+  const ratio = window.devicePixelRatio || 1;
+  canvas.width = width * ratio;
+  canvas.height = height * ratio;
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+  if (!data.length) return;
+
+  const years = [...new Set(data.map(point => point.year))];
+  const colors = ['#0b5f72', '#d17027', '#5b8a3c', '#9057a1', '#ba4d65', '#4165a8'];
+  const series = new Map(years.map(year => [year, new Map()]));
+  data.forEach(point => series.get(point.year).set(Number(point.month), Number(point.value)));
+  const max = Math.max(...data.map(point => Number(point.value)), 1);
+  const left = 72, right = 20, top = 24, bottom = 52;
+  const plotWidth = width - left - right, plotHeight = height - top - bottom;
+  const x = month => left + ((month - 1) / 11) * plotWidth;
+  const y = value => top + plotHeight - (value / max) * plotHeight;
+
+  ctx.font = '12px ui-sans-serif, system-ui, sans-serif';
+  ctx.fillStyle = '#536671';
+  ctx.strokeStyle = '#dce5e8';
+  ctx.lineWidth = 1;
+  for (let tick = 0; tick <= 4; tick += 1) {
+    const value = (max * tick) / 4;
+    const lineY = y(value);
+    ctx.beginPath(); ctx.moveTo(left, lineY); ctx.lineTo(width - right, lineY); ctx.stroke();
+    ctx.textAlign = 'right'; ctx.fillText(formatChartValue(value, result.metric), left - 10, lineY + 4);
+  }
+  ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].forEach((month, index) => {
+    ctx.textAlign = 'center'; ctx.fillStyle = '#536671'; ctx.fillText(month, x(index + 1), height - 20);
+  });
+  years.forEach((year, seriesIndex) => {
+    const color = colors[seriesIndex % colors.length];
+    const points = series.get(year);
+    ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 2;
+    if (style === 'bar') {
+      const barWidth = Math.max(3, plotWidth / 12 / years.length - 3);
+      points.forEach((value, month) => {
+        const offset = (seriesIndex - (years.length - 1) / 2) * (barWidth + 3);
+        ctx.fillRect(x(month) + offset - barWidth / 2, y(value), barWidth, top + plotHeight - y(value));
+      });
+    } else {
+      let started = false;
+      [...points.entries()].sort((a, b) => a[0] - b[0]).forEach(([month, value]) => {
+        if (!started) { ctx.beginPath(); ctx.moveTo(x(month), y(value)); started = true; }
+        else ctx.lineTo(x(month), y(value));
+      });
+      ctx.stroke();
+      points.forEach((value, month) => { ctx.beginPath(); ctx.arc(x(month), y(value), 3, 0, Math.PI * 2); ctx.fill(); });
+    }
+    legend.insertAdjacentHTML('beforeend', `<span><i style="background:${color}"></i>${escapeHtml(year)}</span>`);
+  });
+}
+
+async function loadStoreChart() {
+  const store = document.querySelector('#chart-store').value;
+  const metric = document.querySelector('#chart-metric').value;
+  if (!store) {
+    drawStoreChart({data: [], metric}, 'line');
+    return;
+  }
+  const empty = document.querySelector('#chart-empty');
+  empty.hidden = false; empty.textContent = 'Loading store trend…';
+  try {
+    const response = await fetch(`/api/store-chart?${new URLSearchParams({storeId: store, metric})}`);
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Could not load the chart.');
+    drawStoreChart(result, document.querySelector('#chart-style').value);
+  } catch (error) { empty.hidden = false; empty.textContent = error.message; }
 }
 
 async function editRecord(type, id) {
@@ -78,6 +200,8 @@ document.querySelectorAll('nav button').forEach(button => button.addEventListene
   if (target?.tagName === 'FORM') clearEdit(target);
   notice.textContent = '';
   if (button.dataset.form === 'records') await loadRecords();
+  if (button.dataset.form === 'calendar') await loadCalendar();
+  if (button.dataset.form === 'chart') await loadStoreChart();
 }));
 
 document.querySelector('#refresh-records').addEventListener('click', loadRecords);
@@ -86,6 +210,24 @@ document.querySelector('#record-tables').addEventListener('click', event => {
   const button = event.target.closest('.edit-record');
   if (button) editRecord(button.dataset.type, button.dataset.id);
 });
+
+document.querySelector('#previous-month').addEventListener('click', () => {
+  calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1);
+  renderCalendar();
+});
+document.querySelector('#next-month').addEventListener('click', () => {
+  calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1);
+  renderCalendar();
+});
+document.querySelector('#calendar-grid').addEventListener('click', event => {
+  const button = event.target.closest('.calendar-event');
+  if (!button) return;
+  const inventory = calendarEvents.find(item => item.id === button.dataset.id);
+  if (!inventory) return;
+  document.querySelector('#calendar-detail').textContent = `${inventory.date} · ${inventory.store} · ${inventory.status} · ${inventory.pieceCount || 0} pieces · $${inventory.totalValue || '0.00'} · Discount: ${inventory.discount || 0}${inventory.lead ? ` · Lead: ${inventory.lead}` : ''}`;
+});
+
+document.querySelector('#update-chart').addEventListener('click', loadStoreChart);
 
 forms.forEach(form => form.addEventListener('submit', async event => {
   event.preventDefault();
