@@ -39,4 +39,14 @@ User passwords are securely hashed before storage and are never displayed by the
 ## Database migration
 
 Before using the Discount field, apply `migrations/001_add_inventory_discount.sql` once to the `ross_inventories` database. It adds a non-null integer `Discount` column with a default value of `0`, preserving all existing inventory rows.
+
+Apply `migrations/002_add_inventory_variance_amount_and_controller.sql` once to add `ControllerName` and `VarianceDollarAmount` to inventory records.
+
+Apply `migrations/003_add_inventory_total_value_item.sql` once to add the separate `TotalValueItem` amount to inventory records.
+
+Apply `migrations/004_split_inventory_hours_worked.sql` once to rename existing `HoursWorked` values to `HoursWorkedActual` and add `HoursWorkedPlanned`.
+
+Apply `migrations/005_add_inventory_sheet_counts_and_page_break.sql` once to add `CountsShowingOnSheets` and `PageBreak` to inventory records.
+
+Apply `migrations/006_add_inventory_travel_time_and_email.sql` once to add `TravelTime` and `Email` to inventory records.
 # ross_inventory_database_display

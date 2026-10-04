@@ -64,6 +64,15 @@ def money(data, name, required_field=False):
         raise ValueError(f"{name} must be a valid amount.")
 
 
+def yes_no(data, name):
+    value = str(data.get(name, "0")).lower()
+    if value in {"1", "yes", "true", "on"}:
+        return 1
+    if value in {"0", "no", "false", "off", ""}:
+        return 0
+    raise ValueError(f"{name} must be Yes or No.")
+
+
 def rows(sql, fields):
     return [dict(zip(fields, line.split("\t"))) for line in mysql(sql).splitlines() if line]
 
@@ -76,7 +85,7 @@ FIELDS = {
     "client": (("ClientName", "clientName"), ("ContactName", "contactName"), ("Phone", "phone"), ("Email", "email"), ("BillingAddress", "billingAddress"), ("Status", "status")),
     "store": (("ClientId", "clientId"), ("StoreName", "storeName"), ("Address", "address"), ("City", "city"), ("State", "state"), ("Zip", "zip")),
     "employee": (("FirstName", "firstName"), ("LastName", "lastName"), ("Email", "email"), ("Phone", "phone")),
-    "inventory": tuple(zip("StoreId,PartsManager,InventoryDate,PieceCount,TotalValue,VarianceCount,WriteInCount,Discount,InventoryCost,InventoryLeadId,HoursWorked,CrewSize,Status,Notes,Type,ComputerSystem".split(","), "storeId,partsManager,inventoryDate,pieceCount,totalValue,varianceCount,writeInCount,discount,inventoryCost,inventoryLeadId,hoursWorked,crewSize,status,notes,type,computerSystem".split(","))),
+    "inventory": tuple(zip("StoreId,PartsManager,ControllerName,InventoryDate,PieceCount,TotalValue,TotalValueItem,VarianceCount,VarianceDollarAmount,WriteInCount,Discount,InventoryCost,InventoryLeadId,HoursWorkedActual,HoursWorkedPlanned,CrewSize,Status,Notes,Type,ComputerSystem,CountsShowingOnSheets,PageBreak,TravelTime,Email".split(","), "storeId,partsManager,controllerName,inventoryDate,pieceCount,totalValue,totalValueItem,varianceCount,varianceDollarAmount,writeInCount,discount,inventoryCost,inventoryLeadId,hoursWorkedActual,hoursWorkedPlanned,crewSize,status,notes,type,computerSystem,countsShowingOnSheets,pageBreak,travelTime,email".split(","))),
 }
 PRIMARY_KEYS = {"client": "ClientId", "store": "StoreId", "employee": "EmployeeId", "inventory": "InventoryId"}
 
@@ -91,7 +100,7 @@ def values_for(record_type, data):
     if record_type == "inventory":
         inventory_date = required(data, "inventoryDate")
         date.fromisoformat(inventory_date)
-        return [integer(data, "storeId", True), esc(data.get("partsManager")), esc(inventory_date), integer(data, "pieceCount", True), money(data, "totalValue"), integer(data, "varianceCount"), integer(data, "writeInCount"), integer(data, "discount") or 0, money(data, "inventoryCost", True), integer(data, "inventoryLeadId"), money(data, "hoursWorked"), integer(data, "crewSize"), esc(data.get("status") or "Completed"), esc(data.get("notes")), esc(data.get("type") or "Inventory"), esc(data.get("computerSystem"))]
+        return [integer(data, "storeId", True), esc(data.get("partsManager")), esc(data.get("controllerName")), esc(inventory_date), integer(data, "pieceCount", True), money(data, "totalValue"), money(data, "totalValueItem"), integer(data, "varianceCount"), money(data, "varianceDollarAmount"), integer(data, "writeInCount"), integer(data, "discount") or 0, money(data, "inventoryCost", True), integer(data, "inventoryLeadId"), money(data, "hoursWorkedActual"), money(data, "hoursWorkedPlanned"), integer(data, "crewSize"), esc(data.get("status") or "Completed"), esc(data.get("notes")), esc(data.get("type") or "Inventory"), esc(data.get("computerSystem")), yes_no(data, "countsShowingOnSheets"), integer(data, "pageBreak"), money(data, "travelTime"), esc(data.get("email"))]
     raise ValueError("Unknown endpoint.")
 
 
@@ -126,7 +135,7 @@ def records():
             clients=rows("SELECT ClientId, ClientName, ContactName, Phone, Email, BillingAddress, Status FROM client ORDER BY ClientName", ["ID", "Group", "Contact", "Phone", "Email", "Billing address", "Status"]),
             stores=rows("SELECT s.StoreId, s.StoreName, c.ClientName, s.Address, s.City, s.State, s.Zip FROM store s LEFT JOIN client c ON c.ClientId = s.ClientId ORDER BY s.StoreName", ["ID", "Store", "Group", "Address", "City", "State", "ZIP"]),
             employees=rows("SELECT EmployeeId, FirstName, LastName, Email, Phone, IF(Active = b'1', 'Yes', 'No') FROM employee ORDER BY LastName, FirstName", ["ID", "First name", "Last name", "Email", "Phone", "Active"]),
-            inventories=rows("SELECT i.InventoryId, s.StoreName, i.PartsManager, i.InventoryDate, i.PieceCount, i.TotalValue, i.VarianceCount, i.WriteInCount, i.Discount, i.InventoryCost, CONCAT(e.FirstName, ' ', e.LastName), i.HoursWorked, i.CrewSize, i.Status, i.Type, i.ComputerSystem, i.Notes FROM inventory i JOIN store s ON s.StoreId = i.StoreId LEFT JOIN employee e ON e.EmployeeId = i.InventoryLeadId ORDER BY i.InventoryDate DESC, i.InventoryId DESC", ["ID", "Store", "Parts manager", "Date", "Pieces", "Total value", "Variance", "Write-ins", "Discount", "Cost", "Inventory lead", "Hours", "Crew", "Status", "Type", "System", "Notes"]),
+            inventories=rows("SELECT i.InventoryId, s.StoreName, i.PartsManager, i.ControllerName, i.InventoryDate, i.PieceCount, i.TotalValue, i.TotalValueItem, i.VarianceCount, i.VarianceDollarAmount, i.WriteInCount, i.Discount, i.InventoryCost, CONCAT(e.FirstName, ' ', e.LastName), i.HoursWorkedActual, i.HoursWorkedPlanned, i.CrewSize, i.Status, i.Type, i.ComputerSystem, i.Notes, IF(i.CountsShowingOnSheets = 1, 'Yes', 'No'), i.PageBreak, i.TravelTime, i.Email FROM inventory i JOIN store s ON s.StoreId = i.StoreId LEFT JOIN employee e ON e.EmployeeId = i.InventoryLeadId ORDER BY i.InventoryDate DESC, i.InventoryId DESC", ["ID", "Store", "Parts manager", "Controller name", "Date", "Part number count", "Total value (parts)", "Total value", "Variance count", "Variance dollar amount", "Write-ins", "Discount", "Cost", "Inventory lead", "Hours worked actual", "Hours worked planned", "Crew", "Status", "Type", "System", "Notes", "Counts showing on sheets", "Page break", "Travel time", "Email"]),
             users=rows("SELECT UserId, Username, FirstName, LastName, Email, IF(Active = b'1', 'Yes', 'No') FROM user ORDER BY Username", ["ID", "Username", "First name", "Last name", "Email", "Active"]))
     except ValueError as exc:
         return error(exc, 500)
