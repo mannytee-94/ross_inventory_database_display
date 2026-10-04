@@ -9,8 +9,8 @@ function escapeHtml(value) {
 
 function clearEdit(form) {
   delete form.dataset.editId;
-  const titles = {inventory: 'Inventory details', user: 'Create user'};
-  const buttons = {user: 'Create user'};
+  const titles = {inventory: 'Inventory details', client: 'Group', user: 'Create user'};
+  const buttons = {client: 'Save group', user: 'Create user'};
   form.querySelector('h2').textContent = titles[form.id] || form.id[0].toUpperCase() + form.id.slice(1);
   form.querySelector('[type="submit"]').textContent = buttons[form.id] || `Save ${form.id}`;
   if (form.id === 'user') form.querySelectorAll('[name="password"], [name="confirmPassword"]').forEach(field => field.required = true);
@@ -27,7 +27,7 @@ async function refreshOptions() {
   if (!response.ok) throw new Error(data.error);
   fillSelect('#inventory [name="storeId"]', data.stores, 'Select a store');
   fillSelect('#inventory [name="inventoryLeadId"]', data.employees, 'Select lead (optional)');
-  fillSelect('#store [name="clientId"]', data.clients, 'No client assigned');
+  fillSelect('#store [name="clientId"]', data.clients, 'No group assigned');
   fillSelect('#chart-store', data.stores, 'Select a store');
 }
 
@@ -38,7 +38,7 @@ async function loadRecords() {
     const response = await fetch('/api/records');
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Could not load records.');
-    const labels = {clients: 'Clients', stores: 'Stores', employees: 'Employees', inventories: 'Inventories', users: 'User accounts'};
+    const labels = {clients: 'Groups', stores: 'Stores', employees: 'Employees', inventories: 'Inventories', users: 'User accounts'};
     const editable = {clients: 'client', stores: 'store', employees: 'employee', inventories: 'inventory', users: 'user'};
     container.innerHTML = Object.entries(data).map(([key, records]) => {
       const headers = records[0] ? Object.keys(records[0]) : [];
@@ -181,13 +181,14 @@ async function editRecord(type, id) {
       if (field) field.value = value === 'NULL' ? '' : value;
     });
     form.dataset.editId = id;
-    form.querySelector('h2').textContent = `Edit ${type} #${id}`;
+    const displayType = type === 'client' ? 'group' : type;
+    form.querySelector('h2').textContent = `Edit ${displayType} #${id}`;
     form.querySelector('[type="submit"]').textContent = 'Save changes';
     if (type === 'user') form.querySelectorAll('[name="password"], [name="confirmPassword"]').forEach(field => field.required = false);
     document.querySelectorAll('nav button, form, section.form-card').forEach(el => el.classList.remove('active'));
     document.querySelector(`nav button[data-form="${type}"]`).classList.add('active');
     form.classList.add('active');
-    notice.textContent = `Editing ${type} #${id}.`;
+    notice.textContent = `Editing ${displayType} #${id}.`;
     notice.className = '';
   } catch (error) { notice.textContent = error.message; notice.className = 'error'; }
 }

@@ -12,12 +12,12 @@
       <header>
         <p class="eyebrow">ROSS INVENTORIES</p>
         <h1>Data entry</h1>
-        <p class="lede">Add clients, stores, crew members, and completed inventories.</p>
+        <p class="lede">Add groups, stores, crew members, and completed inventories.</p>
       </header>
 
       <nav aria-label="Forms">
         <button class="active" data-form="inventory">New inventory</button>
-        <button data-form="client">New client</button>
+        <button data-form="client">New group</button>
         <button data-form="store">New store</button>
         <button data-form="employee">New employee</button>
         <button data-form="user">Create user</button>
@@ -59,9 +59,9 @@
       </form>
 
       <form id="client" class="form-card">
-        <h2>Client</h2>
+        <h2>Group</h2>
         <div class="grid">
-          <label>Client name <input name="clientName" required></label>
+          <label>Group name <input name="clientName" required></label>
           <label>Contact name <input name="contactName"></label>
           <label>Phone <input name="phone" type="tel"></label>
           <label>Email <input name="email" type="email"></label>
@@ -74,13 +74,13 @@
           </label>
           <label class="full">Billing address <textarea name="billingAddress" rows="3"></textarea></label>
         </div>
-        <button type="submit">Save client</button>
+        <button type="submit">Save group</button>
       </form>
 
       <form id="store" class="form-card">
         <h2>Store</h2>
         <div class="grid">
-          <label>Client <select name="clientId"><option value="">No client assigned</option></select></label>
+          <label>Group <select name="clientId"><option value="">No group assigned</option></select></label>
           <label>Store name <input name="storeName"></label>
           <label>Address <input name="address"></label>
           <label>City <input name="city"></label>

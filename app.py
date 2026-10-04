@@ -123,8 +123,8 @@ def options():
 def records():
     try:
         return jsonify(
-            clients=rows("SELECT ClientId, ClientName, ContactName, Phone, Email, BillingAddress, Status FROM client ORDER BY ClientName", ["ID", "Client", "Contact", "Phone", "Email", "Billing address", "Status"]),
-            stores=rows("SELECT s.StoreId, s.StoreName, c.ClientName, s.Address, s.City, s.State, s.Zip FROM store s LEFT JOIN client c ON c.ClientId = s.ClientId ORDER BY s.StoreName", ["ID", "Store", "Client", "Address", "City", "State", "ZIP"]),
+            clients=rows("SELECT ClientId, ClientName, ContactName, Phone, Email, BillingAddress, Status FROM client ORDER BY ClientName", ["ID", "Group", "Contact", "Phone", "Email", "Billing address", "Status"]),
+            stores=rows("SELECT s.StoreId, s.StoreName, c.ClientName, s.Address, s.City, s.State, s.Zip FROM store s LEFT JOIN client c ON c.ClientId = s.ClientId ORDER BY s.StoreName", ["ID", "Store", "Group", "Address", "City", "State", "ZIP"]),
             employees=rows("SELECT EmployeeId, FirstName, LastName, Email, Phone, IF(Active = b'1', 'Yes', 'No') FROM employee ORDER BY LastName, FirstName", ["ID", "First name", "Last name", "Email", "Phone", "Active"]),
             inventories=rows("SELECT i.InventoryId, s.StoreName, i.PartsManager, i.InventoryDate, i.PieceCount, i.TotalValue, i.VarianceCount, i.WriteInCount, i.Discount, i.InventoryCost, CONCAT(e.FirstName, ' ', e.LastName), i.HoursWorked, i.CrewSize, i.Status, i.Type, i.ComputerSystem, i.Notes FROM inventory i JOIN store s ON s.StoreId = i.StoreId LEFT JOIN employee e ON e.EmployeeId = i.InventoryLeadId ORDER BY i.InventoryDate DESC, i.InventoryId DESC", ["ID", "Store", "Parts manager", "Date", "Pieces", "Total value", "Variance", "Write-ins", "Discount", "Cost", "Inventory lead", "Hours", "Crew", "Status", "Type", "System", "Notes"]),
             users=rows("SELECT UserId, Username, FirstName, LastName, Email, IF(Active = b'1', 'Yes', 'No') FROM user ORDER BY Username", ["ID", "Username", "First name", "Last name", "Email", "Active"]))

@@ -25,7 +25,7 @@ The included `Dockerfile` builds the Flask app and its MySQL/MariaDB client. In 
 ## Included forms
 
 - New inventory record (with live store and employee selections)
-- New client
+- New group (stored in the existing `client` database table)
 - New store (optionally attached to a client)
 - New employee
 - Create user accounts with server-side password hashing
