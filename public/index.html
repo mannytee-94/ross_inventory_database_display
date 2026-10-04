@@ -16,7 +16,8 @@
       </header>
 
       <nav aria-label="Forms">
-        <button class="active" data-form="inventory">New inventory</button>
+        <button class="active" data-form="schedule">Schedule inventory</button>
+        <button data-form="complete">Complete inventory</button>
         <button data-form="client">New group</button>
         <button data-form="store">New store</button>
         <button data-form="employee">New employee</button>
@@ -28,13 +29,26 @@
 
       <p id="notice" role="status"></p>
 
-      <form id="inventory" class="active form-card">
-        <h2>Inventory details</h2>
+      <form id="schedule" class="active form-card">
+        <h2>Schedule inventory</h2>
         <div class="grid">
           <label>Store <select name="storeId" required></select></label>
-          <label>Inventory date <input name="inventoryDate" type="date" required></label>
           <label>Parts manager <input name="partsManager"></label>
           <label>Controller name <input name="controllerName"></label>
+          <label>Email <input name="email" type="email"></label>
+          <label>Inventory date <input name="inventoryDate" type="date" required></label>
+          <label>Hours worked planned <input name="hoursWorkedPlanned" type="number" step="0.01" min="0"></label>
+          <label>Computer system <input name="computerSystem"></label>
+          <label class="full">Notes <textarea name="notes" rows="3"></textarea></label>
+        </div>
+        <button type="submit">Schedule inventory</button>
+      </form>
+
+      <form id="complete" class="form-card">
+        <h2>Complete inventory</h2>
+        <p class="privacy-note">Select a scheduled inventory, then enter its completed counts and costs.</p>
+        <div class="grid">
+          <label class="full">Scheduled inventory <select name="scheduledInventoryId" required><option value="">Select a scheduled inventory</option></select></label>
           <label>Inventory lead <select name="inventoryLeadId"><option value="">Select lead (optional)</option></select></label>
           <label>Part number count <input name="pieceCount" type="number" min="0" value="0" required></label>
           <label>Total value (parts) <input name="totalValue" type="number" step="0.01" min="0"></label>
@@ -45,28 +59,55 @@
           <label>Discount <input name="discount" type="number" step="1" value="0"></label>
           <label>Inventory cost <input name="inventoryCost" type="number" step="0.01" min="0" value="0.00" required></label>
           <label>Hours worked actual <input name="hoursWorkedActual" type="number" step="0.01" min="0"></label>
-          <label>Hours worked planned <input name="hoursWorkedPlanned" type="number" step="0.01" min="0"></label>
           <label>Crew size <input name="crewSize" type="number" min="0"></label>
-          <label>
-            Status
-            <select name="status">
-              <option>Completed</option>
-              <option>Pending</option>
-              <option>Cancelled</option>
-            </select>
-          </label>
           <label>Type <input name="type" value="Inventory"></label>
-          <label>Computer system <input name="computerSystem"></label>
-          <label class="full">Notes <textarea name="notes" rows="3"></textarea></label>
           <label>
             Counts showing on sheets
             <select name="countsShowingOnSheets"><option value="0">No</option><option value="1">Yes</option></select>
           </label>
           <label>Page break <input name="pageBreak" type="number" step="1" min="0"></label>
           <label>Travel time <input name="travelTime" type="number" step="0.01" min="0"></label>
-          <label>Email <input name="email" type="email"></label>
+          <label class="full">Notes <textarea name="notes" rows="3"></textarea></label>
         </div>
-        <button type="submit">Save inventory</button>
+        <button type="submit">Complete inventory</button>
+      </form>
+
+      <form id="inventory-edit" class="form-card">
+        <h2>Edit inventory</h2>
+        <p class="privacy-note">Update any scheduling or completion field, including inventory status.</p>
+        <div class="grid">
+          <label>Store <select name="storeId" required></select></label>
+          <label>Inventory date <input name="inventoryDate" type="date" required></label>
+          <label>Parts manager <input name="partsManager"></label>
+          <label>Controller name <input name="controllerName"></label>
+          <label>Email <input name="email" type="email"></label>
+          <label>Inventory lead <select name="inventoryLeadId"><option value="">Select lead (optional)</option></select></label>
+          <label>Part number count <input name="pieceCount" type="number" min="0" required></label>
+          <label>Total value (parts) <input name="totalValue" type="number" step="0.01" min="0"></label>
+          <label>Total value <input name="totalValueItem" type="number" step="0.01" min="0"></label>
+          <label>Variance count <input name="varianceCount" type="number"></label>
+          <label>Variance dollar amount <input name="varianceDollarAmount" type="number" step="0.01"></label>
+          <label>Write-in count <input name="writeInCount" type="number"></label>
+          <label>Discount <input name="discount" type="number" step="1"></label>
+          <label>Inventory cost <input name="inventoryCost" type="number" step="0.01" min="0" required></label>
+          <label>Hours worked actual <input name="hoursWorkedActual" type="number" step="0.01" min="0"></label>
+          <label>Hours worked planned <input name="hoursWorkedPlanned" type="number" step="0.01" min="0"></label>
+          <label>Crew size <input name="crewSize" type="number" min="0"></label>
+          <label>
+            Inventory status
+            <select name="status"><option>Scheduled</option><option>Completed</option></select>
+          </label>
+          <label>Type <input name="type"></label>
+          <label>Computer system <input name="computerSystem"></label>
+          <label>
+            Counts showing on sheets
+            <select name="countsShowingOnSheets"><option value="0">No</option><option value="1">Yes</option></select>
+          </label>
+          <label>Page break <input name="pageBreak" type="number" step="1" min="0"></label>
+          <label>Travel time <input name="travelTime" type="number" step="0.01" min="0"></label>
+          <label class="full">Notes <textarea name="notes" rows="3"></textarea></label>
+        </div>
+        <button type="submit">Save inventory changes</button>
       </form>
 
       <form id="client" class="form-card">
@@ -138,6 +179,7 @@
         <div class="calendar-weekdays" aria-hidden="true">
           <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
         </div>
+        <p class="calendar-legend"><span class="scheduled-swatch"></span>Scheduled <span class="completed-swatch"></span>Completed</p>
         <div id="calendar-grid" class="calendar-grid" aria-live="polite"></div>
         <p id="calendar-detail" class="calendar-detail">Select an inventory to see its details.</p>
       </section>

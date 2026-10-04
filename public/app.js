@@ -9,8 +9,8 @@ function escapeHtml(value) {
 
 function clearEdit(form) {
   delete form.dataset.editId;
-  const titles = {inventory: 'Inventory details', client: 'Group', user: 'Create user'};
-  const buttons = {client: 'Save group', user: 'Create user'};
+  const titles = {schedule: 'Schedule inventory', complete: 'Complete inventory', 'inventory-edit': 'Edit inventory', client: 'Group', user: 'Create user'};
+  const buttons = {schedule: 'Schedule inventory', complete: 'Complete inventory', 'inventory-edit': 'Save inventory changes', client: 'Save group', user: 'Create user'};
   form.querySelector('h2').textContent = titles[form.id] || form.id[0].toUpperCase() + form.id.slice(1);
   form.querySelector('[type="submit"]').textContent = buttons[form.id] || `Save ${form.id}`;
   if (form.id === 'user') form.querySelectorAll('[name="password"], [name="confirmPassword"]').forEach(field => field.required = true);
@@ -25,10 +25,16 @@ async function refreshOptions() {
   const response = await fetch('/api/options');
   const data = await response.json();
   if (!response.ok) throw new Error(data.error);
-  fillSelect('#inventory [name="storeId"]', data.stores, 'Select a store');
-  fillSelect('#inventory [name="inventoryLeadId"]', data.employees, 'Select lead (optional)');
+  fillSelect('#schedule [name="storeId"]', data.stores, 'Select a store');
+  fillSelect('#complete [name="inventoryLeadId"]', data.employees, 'Select lead (optional)');
+  fillSelect('#inventory-edit [name="storeId"]', data.stores, 'Select a store');
+  fillSelect('#inventory-edit [name="inventoryLeadId"]', data.employees, 'Select lead (optional)');
   fillSelect('#store [name="clientId"]', data.clients, 'No group assigned');
   fillSelect('#chart-store', data.stores, 'Select a store');
+  const scheduledResponse = await fetch('/api/scheduled-inventories');
+  const scheduled = await scheduledResponse.json();
+  if (!scheduledResponse.ok) throw new Error(scheduled.error);
+  fillSelect('#complete [name="scheduledInventoryId"]', scheduled, 'Select a scheduled inventory');
 }
 
 async function loadRecords() {
@@ -67,7 +73,7 @@ function renderCalendar() {
     if (day < 1) { cells.push('<div class="calendar-day empty-day"></div>'); continue; }
     const isoDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     const events = eventsByDate[isoDate] || [];
-    cells.push(`<div class="calendar-day"><span class="calendar-date">${day}</span>${events.map(event => `<button class="calendar-event" type="button" data-id="${escapeHtml(event.id)}">${escapeHtml(event.store)}</button>`).join('')}</div>`);
+    cells.push(`<div class="calendar-day"><span class="calendar-date">${day}</span>${events.map(event => `<button class="calendar-event ${event.status === 'Scheduled' ? 'scheduled-event' : 'completed-event'}" type="button" data-id="${escapeHtml(event.id)}" title="${escapeHtml(event.status)}: ${escapeHtml(event.store)}">${escapeHtml(event.store)}</button>`).join('')}</div>`);
   }
   grid.innerHTML = cells.join('');
 }
@@ -174,19 +180,21 @@ async function editRecord(type, id) {
     const values = await response.json();
     if (!response.ok) throw new Error(values.error || 'Could not load this record.');
     await refreshOptions();
-    const form = document.querySelector(`#${type}`);
+    const formType = type === 'inventory' ? 'inventory-edit' : type;
+    const form = document.querySelector(`#${formType}`);
     form.reset();
     Object.entries(values).forEach(([name, value]) => {
       const field = form.elements.namedItem(name);
       if (field) field.value = value === 'NULL' ? '' : value;
     });
     form.dataset.editId = id;
-    const displayType = type === 'client' ? 'group' : type;
+    const displayType = type === 'client' ? 'group' : type === 'inventory' ? 'inventory' : type;
     form.querySelector('h2').textContent = `Edit ${displayType} #${id}`;
     form.querySelector('[type="submit"]').textContent = 'Save changes';
     if (type === 'user') form.querySelectorAll('[name="password"], [name="confirmPassword"]').forEach(field => field.required = false);
     document.querySelectorAll('nav button, form, section.form-card').forEach(el => el.classList.remove('active'));
-    document.querySelector(`nav button[data-form="${type}"]`).classList.add('active');
+    const navButton = document.querySelector(`nav button[data-form="${formType}"]`);
+    if (navButton) navButton.classList.add('active');
     form.classList.add('active');
     notice.textContent = `Editing ${displayType} #${id}.`;
     notice.className = '';
@@ -198,7 +206,11 @@ document.querySelectorAll('nav button').forEach(button => button.addEventListene
   button.classList.add('active');
   document.querySelector(`#${button.dataset.form}`).classList.add('active');
   const target = document.querySelector(`#${button.dataset.form}`);
-  if (target?.tagName === 'FORM') clearEdit(target);
+  if (target?.tagName === 'FORM') {
+    clearEdit(target);
+    if (target.id === 'schedule' || target.id === 'complete') target.reset();
+    if (target.id === 'schedule') target.querySelector('[name="inventoryDate"]').value = new Date().toISOString().slice(0, 10);
+  }
   notice.textContent = '';
   if (button.dataset.form === 'records') await loadRecords();
   if (button.dataset.form === 'calendar') await loadCalendar();
@@ -210,6 +222,27 @@ document.querySelector('#refresh-records').addEventListener('click', loadRecords
 document.querySelector('#record-tables').addEventListener('click', event => {
   const button = event.target.closest('.edit-record');
   if (button) editRecord(button.dataset.type, button.dataset.id);
+});
+
+document.querySelector('#complete [name="scheduledInventoryId"]').addEventListener('change', async event => {
+  const id = event.target.value;
+  const form = document.querySelector('#complete');
+  if (!id) { delete form.dataset.editId; return; }
+  try {
+    const response = await fetch(`/api/edit/inventory/${id}`);
+    const values = await response.json();
+    if (!response.ok) throw new Error(values.error || 'Could not load this scheduled inventory.');
+    const selectedId = id;
+    form.reset();
+    form.elements.namedItem('scheduledInventoryId').value = selectedId;
+    Object.entries(values).forEach(([name, value]) => {
+      const field = form.elements.namedItem(name);
+      if (field) field.value = value === 'NULL' ? '' : value;
+    });
+    form.dataset.editId = selectedId;
+    notice.textContent = 'Scheduled inventory loaded.';
+    notice.className = '';
+  } catch (error) { notice.textContent = error.message; notice.className = 'error'; }
 });
 
 document.querySelector('#previous-month').addEventListener('click', () => {
@@ -239,18 +272,21 @@ forms.forEach(form => form.addEventListener('submit', async event => {
     const payload = Object.fromEntries(new FormData(form));
     if (form.id === 'user' && payload.password !== payload.confirmPassword) throw new Error('Passwords do not match.');
     const editId = form.dataset.editId;
-    const response = await fetch(`/api/${form.id}${editId ? `/${editId}` : ''}`, {method: editId ? 'PUT' : 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
+    if (form.id === 'complete' && !editId) throw new Error('Select a scheduled inventory first.');
+    const endpoint = form.id === 'schedule' ? '/api/schedule-inventory' : form.id === 'complete' ? `/api/complete-inventory/${editId}` : form.id === 'inventory-edit' ? `/api/inventory/${editId}` : `/api/${form.id}${editId ? `/${editId}` : ''}`;
+    const method = form.id === 'schedule' ? 'POST' : form.id === 'complete' || form.id === 'inventory-edit' ? 'PUT' : editId ? 'PUT' : 'POST';
+    const response = await fetch(endpoint, {method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Could not save this record.');
     notice.textContent = data.message;
     notice.className = 'success';
     form.reset();
     clearEdit(form);
-    if (form.id === 'inventory') form.querySelector('[name="inventoryDate"]').value = new Date().toISOString().slice(0, 10);
+    if (form.id === 'schedule') form.querySelector('[name="inventoryDate"]').value = new Date().toISOString().slice(0, 10);
     await refreshOptions();
   } catch (error) { notice.textContent = error.message; notice.className = 'error'; }
   finally { submit.disabled = false; }
 }));
 
-document.querySelector('#inventory [name="inventoryDate"]').value = new Date().toISOString().slice(0, 10);
+document.querySelector('#schedule [name="inventoryDate"]').value = new Date().toISOString().slice(0, 10);
 refreshOptions().catch(error => { notice.textContent = `Database connection failed: ${error.message}`; notice.className = 'error'; });

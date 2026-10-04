@@ -24,7 +24,8 @@ The included `Dockerfile` builds the Flask app and its MySQL/MariaDB client. In 
 
 ## Included forms
 
-- New inventory record (with live store and employee selections)
+- Schedule an inventory with its store, contacts, date, planned hours, system, and notes
+- Complete a scheduled inventory with its counts, values, costs, actual hours, and other completion details
 - New group (stored in the existing `client` database table)
 - New store (optionally attached to a client)
 - New employee
