@@ -131,10 +131,10 @@ FIELDS = {
     ),
     "inventory": tuple(
         zip(
-            "StoreId,PartsManager,ControllerName,InventoryDate,PieceCount,TotalValue,TotalValueItem,VarianceCount,VarianceDollarAmount,WriteInCount,Discount,InventoryCost,InventoryLeadId,HoursWorkedActual,HoursWorkedPlanned,CrewSize,Status,Notes,Type,ComputerSystem,CountsShowingOnSheets,PageBreak,TravelTime,Email".split(
+            "StoreId,PartsManager,ControllerName,EstimatedStartTime,InventoryDate,PieceCount,TotalValue,TotalValueItem,VarianceCount,VarianceDollarAmount,WriteInCount,Discount,InventoryCost,InventoryLeadId,HoursWorkedActual,EstimatedDuration,CrewSize,Status,Notes,Type,ComputerSystem,CountsShowingOnSheets,PageBreak,TravelTime,Email".split(
                 ","
             ),
-            "storeId,partsManager,controllerName,inventoryDate,pieceCount,totalValue,totalValueItem,varianceCount,varianceDollarAmount,writeInCount,discount,inventoryCost,inventoryLeadId,hoursWorkedActual,hoursWorkedPlanned,crewSize,status,notes,type,computerSystem,countsShowingOnSheets,pageBreak,travelTime,email".split(
+            "storeId,partsManager,controllerName,estimatedStartTime,inventoryDate,pieceCount,totalValue,totalValueItem,varianceCount,varianceDollarAmount,writeInCount,discount,inventoryCost,inventoryLeadId,hoursWorkedActual,estimatedDuration,crewSize,status,notes,type,computerSystem,countsShowingOnSheets,pageBreak,travelTime,email".split(
                 ","
             ),
         )
@@ -171,6 +171,7 @@ def values_for(record_type, data):
             integer(data, "storeId", True),
             esc(data.get("partsManager")),
             esc(data.get("controllerName")),
+            esc(data.get("estimatedStartTime")),
             esc(inventory_date),
             integer(data, "pieceCount", True),
             money(data, "totalValue"),
@@ -182,7 +183,7 @@ def values_for(record_type, data):
             money(data, "inventoryCost", True),
             integer(data, "inventoryLeadId"),
             money(data, "hoursWorkedActual"),
-            money(data, "hoursWorkedPlanned"),
+            money(data, "estimatedDuration"),
             integer(data, "crewSize"),
             esc(inventory_status(data)),
             esc(data.get("notes")),
@@ -222,8 +223,9 @@ SCHEDULE_FIELDS = (
     ("PartsManager", "partsManager"),
     ("ControllerName", "controllerName"),
     ("Email", "email"),
+    ("EstimatedStartTime", "estimatedStartTime"),
     ("InventoryDate", "inventoryDate"),
-    ("HoursWorkedPlanned", "hoursWorkedPlanned"),
+    ("EstimatedDuration", "estimatedDuration"),
     ("ComputerSystem", "computerSystem"),
     ("Notes", "notes"),
     ("Status", "status"),
@@ -238,8 +240,9 @@ def schedule_values(data):
         esc(data.get("partsManager")),
         esc(data.get("controllerName")),
         esc(data.get("email")),
+        esc(data.get("estimatedStartTime")),
         esc(inventory_date),
-        money(data, "hoursWorkedPlanned"),
+        money(data, "estimatedDuration"),
         esc(data.get("computerSystem")),
         esc(data.get("notes")),
         esc("Scheduled"),
@@ -354,13 +357,14 @@ def records():
                 ["ID", "First name", "Last name", "Email", "Phone", "Active"],
             ),
             inventories=rows(
-                "SELECT i.InventoryId, s.StoreName, i.PartsManager, i.ControllerName, i.InventoryDate, i.PieceCount, i.TotalValue, i.TotalValueItem, i.VarianceCount, i.VarianceDollarAmount, i.WriteInCount, i.Discount, i.InventoryCost, CONCAT(e.FirstName, ' ', e.LastName), i.HoursWorkedActual, i.HoursWorkedPlanned, i.CrewSize, i.Status, i.Type, i.ComputerSystem, i.Notes, IF(i.CountsShowingOnSheets = 1, 'Yes', 'No'), i.PageBreak, i.TravelTime, i.Email FROM inventory i JOIN store s ON s.StoreId = i.StoreId LEFT JOIN employee e ON e.EmployeeId = i.InventoryLeadId ORDER BY i.InventoryDate DESC, i.InventoryId DESC",
+                "SELECT i.InventoryId, s.StoreName, i.PartsManager, i.ControllerName, i.InventoryDate, i.EstimatedStartTime, i.PieceCount, i.TotalValue, i.TotalValueItem, i.VarianceCount, i.VarianceDollarAmount, i.WriteInCount, i.Discount, i.InventoryCost, CONCAT(e.FirstName, ' ', e.LastName), i.HoursWorkedActual, i.EstimatedDuration, i.CrewSize, i.Status, i.Type, i.ComputerSystem, i.Notes, IF(i.CountsShowingOnSheets = 1, 'Yes', 'No'), i.PageBreak, i.TravelTime, i.Email FROM inventory i JOIN store s ON s.StoreId = i.StoreId LEFT JOIN employee e ON e.EmployeeId = i.InventoryLeadId ORDER BY i.InventoryDate DESC, i.InventoryId DESC",
                 [
                     "ID",
                     "Store",
                     "Parts manager",
                     "Controller name",
                     "Date",
+                    "Estimated start time",
                     "Part number count",
                     "Total value (parts)",
                     "Total value",
@@ -371,7 +375,7 @@ def records():
                     "Cost",
                     "Inventory lead",
                     "Hours worked actual",
-                    "Hours worked planned",
+                    "Estimated duration",
                     "Crew",
                     "Status",
                     "Type",
@@ -398,8 +402,8 @@ def calendar_events():
     try:
         return jsonify(
             rows(
-                "SELECT i.InventoryId, i.InventoryDate, s.StoreName, i.Status, i.PieceCount, i.TotalValue, i.Discount, COALESCE(CONCAT(e.FirstName, ' ', e.LastName), '') FROM inventory i JOIN store s ON s.StoreId = i.StoreId LEFT JOIN employee e ON e.EmployeeId = i.InventoryLeadId ORDER BY i.InventoryDate, s.StoreName",
-                ["id", "date", "store", "status", "pieceCount", "totalValue", "discount", "lead"],
+                "SELECT i.InventoryId, i.InventoryDate, s.StoreName, i.Status, i.EstimatedStartTime, i.EstimatedDuration, i.PieceCount, i.TotalValue, i.Discount, COALESCE(CONCAT(e.FirstName, ' ', e.LastName), '') FROM inventory i JOIN store s ON s.StoreId = i.StoreId LEFT JOIN employee e ON e.EmployeeId = i.InventoryLeadId ORDER BY i.InventoryDate, i.EstimatedStartTime, s.StoreName",
+                ["id", "date", "store", "status", "estimatedStartTime", "estimatedDuration", "pieceCount", "totalValue", "discount", "lead"],
             )
         )
     except ValueError as exc:

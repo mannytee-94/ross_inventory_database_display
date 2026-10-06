@@ -47,6 +47,8 @@ Apply `migrations/003_add_inventory_total_value_item.sql` once to add the separa
 
 Apply `migrations/004_split_inventory_hours_worked.sql` once to rename existing `HoursWorked` values to `HoursWorkedActual` and add `HoursWorkedPlanned`.
 
+Apply `migrations/007_rename_estimated_duration_and_add_start_time.sql` once to rename `HoursWorkedPlanned` to `EstimatedDuration` and add `EstimatedStartTime`.
+
 Apply `migrations/005_add_inventory_sheet_counts_and_page_break.sql` once to add `CountsShowingOnSheets` and `PageBreak` to inventory records.
 
 Apply `migrations/006_add_inventory_travel_time_and_email.sql` once to add `TravelTime` and `Email` to inventory records.

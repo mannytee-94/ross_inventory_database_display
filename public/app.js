@@ -73,7 +73,15 @@ function renderCalendar() {
     if (day < 1) { cells.push('<div class="calendar-day empty-day"></div>'); continue; }
     const isoDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     const events = eventsByDate[isoDate] || [];
-    cells.push(`<div class="calendar-day"><span class="calendar-date">${day}</span>${events.map(event => `<button class="calendar-event ${event.status === 'Scheduled' ? 'scheduled-event' : 'completed-event'}" type="button" data-id="${escapeHtml(event.id)}" title="${escapeHtml(event.status)}: ${escapeHtml(event.store)}">${escapeHtml(event.store)}</button>`).join('')}</div>`);
+    const blocks = events.map(event => {
+      const scheduled = event.status === 'Scheduled';
+      const duration = Math.max(1, Math.min(12, Number(event.estimatedDuration) || 1));
+      const time = scheduled && event.estimatedStartTime ? event.estimatedStartTime.slice(0, 5) : '';
+      const label = scheduled ? `${time ? `${time} · ` : ''}${event.store}${event.estimatedDuration ? ` (${event.estimatedDuration}h)` : ''}` : event.store;
+      const size = scheduled ? ` style="min-height:${Math.max(26, 20 + duration * 5)}px"` : '';
+      return `<button class="calendar-event ${scheduled ? 'scheduled-event' : 'completed-event'}" type="button" data-id="${escapeHtml(event.id)}" title="${escapeHtml(event.status)}: ${escapeHtml(label)}"${size}>${escapeHtml(label)}</button>`;
+    }).join('');
+    cells.push(`<div class="calendar-day"><span class="calendar-date">${day}</span>${blocks}</div>`);
   }
   grid.innerHTML = cells.join('');
 }
@@ -258,7 +266,8 @@ document.querySelector('#calendar-grid').addEventListener('click', event => {
   if (!button) return;
   const inventory = calendarEvents.find(item => item.id === button.dataset.id);
   if (!inventory) return;
-  document.querySelector('#calendar-detail').textContent = `${inventory.date} · ${inventory.store} · ${inventory.status} · ${inventory.pieceCount || 0} pieces · $${inventory.totalValue || '0.00'} · Discount: ${inventory.discount || 0}${inventory.lead ? ` · Lead: ${inventory.lead}` : ''}`;
+  const schedule = inventory.status === 'Scheduled' ? `${inventory.estimatedStartTime ? ` · Starts ${inventory.estimatedStartTime.slice(0, 5)}` : ''}${inventory.estimatedDuration ? ` · Estimated ${inventory.estimatedDuration} hours` : ''}` : '';
+  document.querySelector('#calendar-detail').textContent = `${inventory.date} · ${inventory.store} · ${inventory.status}${schedule} · ${inventory.pieceCount || 0} pieces · $${inventory.totalValue || '0.00'} · Discount: ${inventory.discount || 0}${inventory.lead ? ` · Lead: ${inventory.lead}` : ''}`;
 });
 
 document.querySelector('#update-chart').addEventListener('click', loadStoreChart);
