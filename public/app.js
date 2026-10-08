@@ -1,7 +1,8 @@
 const notice = document.querySelector('#notice');
 const forms = [...document.querySelectorAll('form')];
 let calendarEvents = [];
-let calendarMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+let calendarCursor = new Date();
+let calendarView = 'month';
 let savedRecords = {};
 let activeRecordCategory = 'inventories';
 
@@ -66,12 +67,67 @@ async function loadRecords() {
   } catch (error) { container.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`; }
 }
 
-function renderCalendar() {
+function calendarEventLabel(event) {
+  const scheduled = event.status === 'Scheduled';
+  const time = scheduled && event.estimatedStartTime ? event.estimatedStartTime.slice(0, 5) : '';
+  return scheduled ? `${time ? `${time} · ` : ''}${event.store}${event.estimatedDuration ? ` (${event.estimatedDuration}h)` : ''}` : event.store;
+}
+
+function calendarEventButton(event, extraClass = '', style = '') {
+  const scheduled = event.status === 'Scheduled';
+  const label = calendarEventLabel(event);
+  return `<button class="calendar-event ${scheduled ? 'scheduled-event' : 'completed-event'} ${extraClass}" type="button" data-id="${escapeHtml(event.id)}" title="${escapeHtml(event.status)}: ${escapeHtml(label)}"${style}>${escapeHtml(label)}</button>`;
+}
+
+function isoCalendarDate(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function fridayOf(date) {
+  const friday = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  friday.setDate(friday.getDate() - ((friday.getDay() + 2) % 7));
+  return friday;
+}
+
+function arrangeTimedWorkweekEvents(events) {
+  const timed = events
+    .filter(event => event.status === 'Scheduled' && event.estimatedStartTime)
+    .map(event => {
+      const [hour, minute] = event.estimatedStartTime.split(':').map(Number);
+      const start = Math.max(0, Math.min(719, ((hour - 7) * 60) + minute));
+      const height = Math.max(28, Math.min(720 - start, (Number(event.estimatedDuration) || 1) * 60));
+      return {event, start, height, end: start + height};
+    })
+    .sort((left, right) => left.start - right.start || left.end - right.end);
+
+  const groups = [];
+  for (const item of timed) {
+    let group = groups.at(-1);
+    if (!group || item.start >= group.end) {
+      group = {end: item.end, laneEnds: [], items: []};
+      groups.push(group);
+    } else {
+      group.end = Math.max(group.end, item.end);
+    }
+    let lane = group.laneEnds.findIndex(end => end <= item.start);
+    if (lane === -1) lane = group.laneEnds.length;
+    group.laneEnds[lane] = item.end;
+    group.items.push({...item, lane});
+  }
+
+  return groups.flatMap(group => group.items.map(item => ({...item, lanes: group.laneEnds.length})));
+}
+
+function renderMonthCalendar() {
   const grid = document.querySelector('#calendar-grid');
   const title = document.querySelector('#calendar-title');
-  const year = calendarMonth.getFullYear();
-  const month = calendarMonth.getMonth();
-  title.textContent = calendarMonth.toLocaleDateString(undefined, {month: 'long', year: 'numeric'});
+  const weekdays = document.querySelector('#calendar-weekdays');
+  const year = calendarCursor.getFullYear();
+  const month = calendarCursor.getMonth();
+  title.textContent = calendarCursor.toLocaleDateString(undefined, {month: 'long', year: 'numeric'});
+  weekdays.className = 'calendar-weekdays';
+  weekdays.innerHTML = '<span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>';
+  grid.className = 'calendar-grid';
   const firstWeekday = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const eventsByDate = calendarEvents.reduce((dates, event) => {
@@ -85,16 +141,53 @@ function renderCalendar() {
     const isoDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     const events = eventsByDate[isoDate] || [];
     const blocks = events.map(event => {
-      const scheduled = event.status === 'Scheduled';
       const duration = Math.max(1, Math.min(12, Number(event.estimatedDuration) || 1));
-      const time = scheduled && event.estimatedStartTime ? event.estimatedStartTime.slice(0, 5) : '';
-      const label = scheduled ? `${time ? `${time} · ` : ''}${event.store}${event.estimatedDuration ? ` (${event.estimatedDuration}h)` : ''}` : event.store;
-      const size = scheduled ? ` style="min-height:${Math.max(26, 20 + duration * 5)}px"` : '';
-      return `<button class="calendar-event ${scheduled ? 'scheduled-event' : 'completed-event'}" type="button" data-id="${escapeHtml(event.id)}" title="${escapeHtml(event.status)}: ${escapeHtml(label)}"${size}>${escapeHtml(label)}</button>`;
+      const size = event.status === 'Scheduled' ? ` style="min-height:${Math.max(26, 20 + duration * 5)}px"` : '';
+      return calendarEventButton(event, '', size);
     }).join('');
     cells.push(`<div class="calendar-day"><span class="calendar-date">${day}</span>${blocks}</div>`);
   }
   grid.innerHTML = cells.join('');
+}
+
+function renderWorkWeek() {
+  const grid = document.querySelector('#calendar-grid');
+  const title = document.querySelector('#calendar-title');
+  const weekdays = document.querySelector('#calendar-weekdays');
+  const friday = fridayOf(calendarCursor);
+  const days = Array.from({length: 3}, (_, index) => new Date(friday.getFullYear(), friday.getMonth(), friday.getDate() + index));
+  const end = days[2];
+  title.textContent = `${friday.toLocaleDateString(undefined, {month: 'short', day: 'numeric'})} – ${end.toLocaleDateString(undefined, {month: 'short', day: 'numeric', year: 'numeric'})}`;
+  weekdays.className = 'calendar-weekdays workweek-weekdays';
+  weekdays.innerHTML = days.map(day => `<span>${day.toLocaleDateString(undefined, {weekday: 'short'})}<small>${day.toLocaleDateString(undefined, {month: 'numeric', day: 'numeric'})}</small></span>`).join('');
+  grid.className = 'workweek-grid';
+  const hours = Array.from({length: 12}, (_, index) => {
+    const hour = index + 7;
+    return `<span>${new Date(2000, 0, 1, hour).toLocaleTimeString(undefined, {hour: 'numeric'})}</span>`;
+  }).join('');
+  const columns = days.map(day => {
+    const events = calendarEvents.filter(event => event.date === isoCalendarDate(day));
+    const timedBlocks = arrangeTimedWorkweekEvents(events).map(({event, start, height, lane, lanes}) => {
+      const width = 100 / lanes;
+      return calendarEventButton(event, 'workweek-event', ` style="top:${start}px;height:${height}px;left:calc(${lane * width}% + 3px);width:calc(${width}% - 6px);right:auto"`);
+    });
+    let unplannedTop = 4;
+    const unplannedBlocks = events
+      .filter(event => !(event.status === 'Scheduled' && event.estimatedStartTime))
+      .map(event => {
+        const block = calendarEventButton(event, 'workweek-event workweek-unplanned-event', ` style="top:${unplannedTop}px;height:30px"`);
+        unplannedTop += 34;
+        return block;
+      });
+    const blocks = [...timedBlocks, ...unplannedBlocks].join('');
+    return `<div class="workweek-day"><div class="workweek-day-body">${blocks}</div></div>`;
+  }).join('');
+  grid.innerHTML = `<div class="workweek-times">${hours}</div>${columns}`;
+}
+
+function renderCalendar() {
+  if (calendarView === 'workweek') renderWorkWeek();
+  else renderMonthCalendar();
 }
 
 async function loadCalendar() {
@@ -273,11 +366,20 @@ document.querySelector('#complete [name="scheduledInventoryId"]').addEventListen
 });
 
 document.querySelector('#previous-month').addEventListener('click', () => {
-  calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1);
+  if (calendarView === 'workweek') calendarCursor.setDate(calendarCursor.getDate() - 7);
+  else calendarCursor = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth() - 1, 1);
   renderCalendar();
 });
 document.querySelector('#next-month').addEventListener('click', () => {
-  calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1);
+  if (calendarView === 'workweek') calendarCursor.setDate(calendarCursor.getDate() + 7);
+  else calendarCursor = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth() + 1, 1);
+  renderCalendar();
+});
+document.querySelector('#calendar-view-toggle').addEventListener('click', event => {
+  const button = event.target.closest('[data-calendar-view]');
+  if (!button) return;
+  calendarView = button.dataset.calendarView;
+  document.querySelectorAll('#calendar-view-toggle button').forEach(item => item.classList.toggle('active', item === button));
   renderCalendar();
 });
 document.querySelector('#calendar-grid').addEventListener('click', event => {

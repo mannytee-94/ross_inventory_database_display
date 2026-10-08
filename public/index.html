@@ -6,6 +6,7 @@
     <title>Ross Inventory Entry</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="calendar.css">
+    <link rel="stylesheet" href="workweek.css">
     <link rel="stylesheet" href="records.css">
   </head>
   <body>
@@ -180,7 +181,11 @@
           <h2 id="calendar-title"></h2>
           <button id="next-month" type="button" aria-label="Next month">›</button>
         </div>
-        <div class="calendar-weekdays" aria-hidden="true">
+        <div id="calendar-view-toggle" class="calendar-view-toggle" role="group" aria-label="Calendar layout">
+          <button type="button" class="active" data-calendar-view="month">Month</button>
+          <button type="button" data-calendar-view="workweek">Work week</button>
+        </div>
+        <div id="calendar-weekdays" class="calendar-weekdays" aria-hidden="true">
           <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
         </div>
         <p class="calendar-legend"><span class="scheduled-swatch"></span>Scheduled <span class="completed-swatch"></span>Completed</p>
