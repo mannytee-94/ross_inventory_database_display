@@ -2,6 +2,8 @@ const notice = document.querySelector('#notice');
 const forms = [...document.querySelectorAll('form')];
 let calendarEvents = [];
 let calendarMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+let savedRecords = {};
+let activeRecordCategory = 'inventories';
 
 document.querySelector('#logout').addEventListener('click', async () => {
   await fetch('/api/logout', {method: 'POST'});
@@ -42,21 +44,25 @@ async function refreshOptions() {
   fillSelect('#complete [name="scheduledInventoryId"]', scheduled, 'Select a scheduled inventory');
 }
 
+function renderRecordCategory() {
+  const container = document.querySelector('#record-tables');
+  const labels = {clients: 'Groups', stores: 'Stores', employees: 'Employees', inventories: 'Inventories', users: 'User accounts'};
+  const editable = {clients: 'client', stores: 'store', employees: 'employee', inventories: 'inventory', users: 'user'};
+  const records = savedRecords[activeRecordCategory] || [];
+  const headers = records[0] ? Object.keys(records[0]) : [];
+  const actionHeader = editable[activeRecordCategory] ? '<th>Actions</th>' : '';
+  const table = records.length ? `<table><thead><tr>${headers.map(header => `<th>${escapeHtml(header)}</th>`).join('')}${actionHeader}</tr></thead><tbody>${records.map(record => `<tr>${headers.map(header => `<td>${escapeHtml(record[header])}</td>`).join('')}${editable[activeRecordCategory] ? `<td><button class="edit-record" type="button" data-type="${editable[activeRecordCategory]}" data-id="${escapeHtml(record.ID)}">Edit</button></td>` : ''}</tr>`).join('')}</tbody></table>` : '<p class="empty">No records saved yet.</p>';
+  container.innerHTML = `<h3 class="record-category-title">${labels[activeRecordCategory]} <span>${records.length}</span></h3><div class="table-wrap">${table}</div>`;
+}
+
 async function loadRecords() {
   const container = document.querySelector('#record-tables');
   container.innerHTML = '<p>Loading saved data…</p>';
   try {
     const response = await fetch('/api/records');
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || 'Could not load records.');
-    const labels = {clients: 'Groups', stores: 'Stores', employees: 'Employees', inventories: 'Inventories', users: 'User accounts'};
-    const editable = {clients: 'client', stores: 'store', employees: 'employee', inventories: 'inventory', users: 'user'};
-    container.innerHTML = Object.entries(data).map(([key, records]) => {
-      const headers = records[0] ? Object.keys(records[0]) : [];
-      const actionHeader = editable[key] ? '<th>Actions</th>' : '';
-      const table = records.length ? `<table><thead><tr>${headers.map(header => `<th>${escapeHtml(header)}</th>`).join('')}${actionHeader}</tr></thead><tbody>${records.map(record => `<tr>${headers.map(header => `<td>${escapeHtml(record[header])}</td>`).join('')}${editable[key] ? `<td><button class="edit-record" type="button" data-type="${editable[key]}" data-id="${escapeHtml(record.ID)}">Edit</button></td>` : ''}</tr>`).join('')}</tbody></table>` : '<p class="empty">No records saved yet.</p>';
-      return `<details open><summary>${labels[key]} <span>${records.length}</span></summary><div class="table-wrap">${table}</div></details>`;
-    }).join('');
+    savedRecords = await response.json();
+    if (!response.ok) throw new Error(savedRecords.error || 'Could not load records.');
+    renderRecordCategory();
   } catch (error) { container.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`; }
 }
 
@@ -205,7 +211,7 @@ async function editRecord(type, id) {
     form.querySelector('h2').textContent = `Edit ${displayType} #${id}`;
     form.querySelector('[type="submit"]').textContent = 'Save changes';
     if (type === 'user') form.querySelectorAll('[name="password"], [name="confirmPassword"]').forEach(field => field.required = false);
-    document.querySelectorAll('nav button, form, section.form-card').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('main > nav button, form, section.form-card').forEach(el => el.classList.remove('active'));
     const navButton = document.querySelector(`nav button[data-form="${formType}"]`);
     if (navButton) navButton.classList.add('active');
     form.classList.add('active');
@@ -214,8 +220,8 @@ async function editRecord(type, id) {
   } catch (error) { notice.textContent = error.message; notice.className = 'error'; }
 }
 
-document.querySelectorAll('nav button').forEach(button => button.addEventListener('click', async () => {
-  document.querySelectorAll('nav button, form, section.form-card').forEach(el => el.classList.remove('active'));
+document.querySelectorAll('main > nav button').forEach(button => button.addEventListener('click', async () => {
+  document.querySelectorAll('main > nav button, form, section.form-card').forEach(el => el.classList.remove('active'));
   button.classList.add('active');
   document.querySelector(`#${button.dataset.form}`).classList.add('active');
   const target = document.querySelector(`#${button.dataset.form}`);
@@ -231,6 +237,14 @@ document.querySelectorAll('nav button').forEach(button => button.addEventListene
 }));
 
 document.querySelector('#refresh-records').addEventListener('click', loadRecords);
+
+document.querySelector('#records-tabs').addEventListener('click', event => {
+  const tab = event.target.closest('button[data-category]');
+  if (!tab) return;
+  activeRecordCategory = tab.dataset.category;
+  document.querySelectorAll('#records-tabs button').forEach(button => button.classList.toggle('active', button === tab));
+  renderRecordCategory();
+});
 
 document.querySelector('#record-tables').addEventListener('click', event => {
   const button = event.target.closest('.edit-record');
