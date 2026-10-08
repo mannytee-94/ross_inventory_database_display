@@ -6,6 +6,7 @@
     <title>Ross Inventory Entry</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="calendar.css">
+    <link rel="stylesheet" href="records.css">
   </head>
   <body>
     <main>
@@ -13,6 +14,7 @@
         <p class="eyebrow">ROSS INVENTORIES</p>
         <h1>Data entry</h1>
         <p class="lede">Add groups, stores, crew members, and completed inventories.</p>
+        <button id="logout" class="logout" type="button">Sign out</button>
       </header>
 
       <nav aria-label="Forms">
@@ -225,6 +227,13 @@
           <button id="refresh-records" type="button">Refresh</button>
         </div>
         <p class="privacy-note">User password hashes are never displayed.</p>
+        <nav id="records-tabs" class="records-tabs" aria-label="Saved data categories">
+          <button class="active" type="button" data-category="inventories">Inventories</button>
+          <button type="button" data-category="stores">Stores</button>
+          <button type="button" data-category="clients">Groups</button>
+          <button type="button" data-category="employees">Employees</button>
+          <button type="button" data-category="users">User accounts</button>
+        </nav>
         <div id="record-tables"></div>
       </section>
     </main>

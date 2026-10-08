@@ -13,10 +13,15 @@ export MYSQL_PORT=3306
 export MYSQL_DATABASE=ross_inventories
 export MYSQL_USER=root
 # export MYSQL_PASSWORD='your-password'
+export FLASK_SECRET_KEY='replace-with-a-long-random-secret'
 python3 app.py
 ```
 
 Open http://localhost:8081 in your browser. Press `Control-C` in the terminal to stop it.
+
+## Login protection
+
+The app requires a username and password from the `user` table before showing inventory data. Password hashes are verified server-side and never sent to the browser. Set a persistent, random `FLASK_SECRET_KEY` before deployment so login sessions survive application restarts.
 
 ## Container deployment
 

@@ -3,6 +3,11 @@ const forms = [...document.querySelectorAll('form')];
 let calendarEvents = [];
 let calendarMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 
+document.querySelector('#logout').addEventListener('click', async () => {
+  await fetch('/api/logout', {method: 'POST'});
+  window.location.assign('/login');
+});
+
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
 }

@@ -6,13 +6,14 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
-from flask import Flask, jsonify, request, send_from_directory
-from werkzeug.security import generate_password_hash
+from flask import Flask, jsonify, redirect, request, send_from_directory, session, url_for
+from werkzeug.security import check_password_hash, generate_password_hash
 
 BASE = Path(__file__).resolve().parent
 PUBLIC = BASE / "public"
 DB_NAME = os.getenv("MYSQL_DATABASE", "ross_inventories")
 app = Flask(__name__, static_folder=str(PUBLIC), static_url_path="")
+app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY", os.urandom(32))
 
 
 def mysql(sql):
@@ -104,6 +105,17 @@ def rows(sql, fields):
 
 def error(message, status=400):
     return jsonify(error=str(message)), status
+
+
+@app.before_request
+def require_login():
+    """Require an authenticated session for every app and data route."""
+    public_endpoints = {"login", "login_submit", "static"}
+    if request.endpoint in public_endpoints or session.get("username"):
+        return None
+    if request.path.startswith("/api/"):
+        return error("Please sign in to continue.", 401)
+    return redirect(url_for("login"))
 
 
 FIELDS = {
@@ -277,6 +289,40 @@ def complete_assignments(data):
 @app.get("/")
 def index():
     return send_from_directory(PUBLIC, "index.html")
+
+
+@app.get("/login")
+def login():
+    if session.get("username"):
+        return redirect(url_for("index"))
+    return send_from_directory(PUBLIC, "login.html")
+
+
+@app.post("/api/login")
+def login_submit():
+    try:
+        data = request.get_json(silent=True) or {}
+        username = required(data, "username")
+        password = required(data, "password")
+        user = rows(
+            "SELECT Username, PasswordHash FROM `user` WHERE Username = "
+            + esc(username)
+            + " AND Active = b'1'",
+            ["username", "passwordHash"],
+        )
+        if not user or not check_password_hash(user[0]["passwordHash"], password):
+            return error("Invalid username or password.", 401)
+        session.clear()
+        session["username"] = user[0]["username"]
+        return jsonify(message="Signed in successfully.")
+    except ValueError as exc:
+        return error(exc)
+
+
+@app.post("/api/logout")
+def logout():
+    session.clear()
+    return jsonify(message="Signed out successfully.")
 
 
 @app.get("/api/options")
