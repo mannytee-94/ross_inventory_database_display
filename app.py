@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Flask API and single-page frontend for Ross inventory data entry."""
 import os
+import re
 import subprocess
 from datetime import date
 from decimal import Decimal, InvalidOperation
@@ -14,6 +15,10 @@ PUBLIC = BASE / "public"
 DB_NAME = os.getenv("MYSQL_DATABASE", "ross_inventories")
 app = Flask(__name__, static_folder=str(PUBLIC), static_url_path="")
 app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY", os.urandom(32))
+PHONE_PATTERN = re.compile(
+    r"(?:\+?1[ .-]?)?(?:\([0-9]{3}\)|[0-9]{3})[ .-]?[0-9]{3}[ .-]?[0-9]{4}"
+)
+EMAIL_PATTERN = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
 
 
 def mysql(sql):
@@ -57,6 +62,30 @@ def required(data, name):
     if value is None or str(value).strip() == "":
         raise ValueError(f"{name} is required.")
     return str(value).strip()
+
+
+def phone(data, name="phone"):
+    """Return an optional North American phone number in a commonly used format."""
+    value = data.get(name)
+    if value is None or str(value).strip() == "":
+        return None
+    value = str(value).strip()
+    if not PHONE_PATTERN.fullmatch(value):
+        raise ValueError(
+            "Phone must be a 10-digit number, such as 555-123-4567 or (555) 123-4567."
+        )
+    return value
+
+
+def email_address(data, name="email"):
+    """Return an optional email address after basic format validation."""
+    value = data.get(name)
+    if value is None or str(value).strip() == "":
+        return None
+    value = str(value).strip()
+    if not EMAIL_PATTERN.fullmatch(value):
+        raise ValueError("Email must be a valid address, such as name@example.com.")
+    return value
 
 
 def integer(data, name, required_field=False):
@@ -162,8 +191,13 @@ PRIMARY_KEYS = {
 
 def values_for(record_type, data):
     if record_type == "client":
-        return [esc(required(data, "clientName"))] + [
-            esc(data.get(field)) for _, field in FIELDS[record_type][1:]
+        return [
+            esc(required(data, "clientName")),
+            esc(data.get("contactName")),
+            esc(phone(data)),
+            esc(email_address(data)),
+            esc(data.get("billingAddress")),
+            esc(data.get("status")),
         ]
     if record_type == "store":
         return [integer(data, "clientId")] + [
@@ -173,8 +207,8 @@ def values_for(record_type, data):
         return [
             esc(required(data, "firstName")),
             esc(required(data, "lastName")),
-            esc(data.get("email")),
-            esc(data.get("phone")),
+            esc(email_address(data)),
+            esc(phone(data)),
         ]
     if record_type == "inventory":
         inventory_date = required(data, "inventoryDate")
@@ -204,7 +238,7 @@ def values_for(record_type, data):
             yes_no(data, "countsShowingOnSheets"),
             integer(data, "pageBreak"),
             money(data, "travelTime"),
-            esc(data.get("email")),
+            esc(email_address(data)),
         ]
     raise ValueError("Unknown endpoint.")
 
@@ -251,7 +285,7 @@ def schedule_values(data):
         integer(data, "storeId", True),
         esc(data.get("partsManager")),
         esc(data.get("controllerName")),
-        esc(data.get("email")),
+        esc(email_address(data)),
         esc(data.get("estimatedStartTime")),
         esc(inventory_date),
         money(data, "estimatedDuration"),
@@ -486,8 +520,10 @@ def edit_data(record_type, record_id):
     if record_type == "user":
         try:
             result = rows(
-                f"SELECT Username, FirstName, LastName, Email FROM `user` WHERE UserId = {record_id}",
-                ["username", "firstName", "lastName", "email"],
+                "SELECT u.Username, u.FirstName, u.LastName, u.Email, COALESCE(e.Phone, '') "
+                "FROM `user` u LEFT JOIN employee e ON e.UserId = u.UserId "
+                f"WHERE u.UserId = {record_id}",
+                ["username", "firstName", "lastName", "email", "phone"],
             )
             return jsonify(result[0]) if result else error("Record not found.", 404)
         except ValueError as exc:
@@ -507,44 +543,67 @@ def edit_data(record_type, record_id):
 
 @app.post("/api/user")
 def create_user():
-    """Create an application user without ever returning the password hash."""
+    """Create a login account and its required linked employee record."""
     try:
         data = request.get_json(silent=True) or {}
         username = required(data, "username")
+        first_name = required(data, "firstName")
+        last_name = required(data, "lastName")
+        email = email_address(data)
+        phone_number = phone(data)
         password = required(data, "password")
         if len(password) < 12:
             raise ValueError("Password must be at least 12 characters.")
         if password != data.get("confirmPassword"):
             raise ValueError("Passwords do not match.")
-        mysql(
-            "INSERT INTO `user` (Username, PasswordHash, FirstName, LastName, Email, Active) VALUES ("
-            + ", ".join(
-                [
-                    esc(username),
-                    esc(generate_password_hash(password)),
-                    esc(data.get("firstName")),
-                    esc(data.get("lastName")),
-                    esc(data.get("email")),
-                    "b'1'",
-                ]
-            )
-            + ")"
+        user_values = ", ".join(
+            [
+                esc(username),
+                esc(generate_password_hash(password)),
+                esc(first_name),
+                esc(last_name),
+                esc(email),
+                "b'1'",
+            ]
         )
-        return jsonify(message="User created successfully."), 201
+        employee_values = ", ".join(
+            [
+                "LAST_INSERT_ID()",
+                esc(first_name),
+                esc(last_name),
+                esc(email),
+                esc(phone_number),
+                "b'1'",
+            ]
+        )
+        mysql(
+            "START TRANSACTION; "
+            "INSERT INTO `user` (Username, PasswordHash, FirstName, LastName, Email, Active) VALUES ("
+            + user_values
+            + "); "
+            "INSERT INTO employee (UserId, FirstName, LastName, Email, Phone, Active) VALUES ("
+            + employee_values
+            + "); COMMIT"
+        )
+        return jsonify(message="User and linked employee created successfully."), 201
     except ValueError as exc:
         return error(exc)
 
 
 @app.put("/api/user/<int:user_id>")
 def update_user(user_id):
-    """Update profile data and optionally replace the password hash."""
+    """Update a login account and keep its linked employee profile in sync."""
     try:
         data = request.get_json(silent=True) or {}
+        first_name = required(data, "firstName")
+        last_name = required(data, "lastName")
+        email = email_address(data)
+        phone_number = phone(data)
         assignments = [
             f"Username = {esc(required(data, 'username'))}",
-            f"FirstName = {esc(data.get('firstName'))}",
-            f"LastName = {esc(data.get('lastName'))}",
-            f"Email = {esc(data.get('email'))}",
+            f"FirstName = {esc(first_name)}",
+            f"LastName = {esc(last_name)}",
+            f"Email = {esc(email)}",
         ]
         password = data.get("password") or ""
         confirmation = data.get("confirmPassword") or ""
@@ -554,7 +613,17 @@ def update_user(user_id):
             if password != confirmation:
                 raise ValueError("Passwords do not match.")
             assignments.append(f"PasswordHash = {esc(generate_password_hash(password))}")
-        mysql("UPDATE `user` SET " + ", ".join(assignments) + f" WHERE UserId = {user_id}")
+        mysql(
+            "START TRANSACTION; UPDATE `user` SET "
+            + ", ".join(assignments)
+            + f" WHERE UserId = {user_id}; "
+            + "UPDATE employee SET "
+            + f"FirstName = {esc(first_name)}, LastName = {esc(last_name)}, Email = {esc(email)}, Phone = {esc(phone_number)} "
+            + f"WHERE UserId = {user_id}; "
+            + "INSERT INTO employee (UserId, FirstName, LastName, Email, Phone, Active) "
+            + f"SELECT {user_id}, {esc(first_name)}, {esc(last_name)}, {esc(email)}, {esc(phone_number)}, b'1' "
+            + f"WHERE NOT EXISTS (SELECT 1 FROM employee WHERE UserId = {user_id}); COMMIT"
+        )
         return jsonify(message="User changes saved successfully.")
     except ValueError as exc:
         return error(exc)

@@ -38,7 +38,7 @@
           <label>Store <select name="storeId" required></select></label>
           <label>Parts manager <input name="partsManager"></label>
           <label>Controller name <input name="controllerName"></label>
-          <label>Email <input name="email" type="email"></label>
+          <label>Email <input name="email" type="email" title="Enter a valid email address, such as name@example.com."></label>
           <label>Inventory date <input name="inventoryDate" type="date" required></label>
           <label>Estimated start time <input name="estimatedStartTime" type="time"></label>
           <label>Estimated duration <input name="estimatedDuration" type="number" step="0.01" min="0"></label>
@@ -84,7 +84,7 @@
           <label>Inventory date <input name="inventoryDate" type="date" required></label>
           <label>Parts manager <input name="partsManager"></label>
           <label>Controller name <input name="controllerName"></label>
-          <label>Email <input name="email" type="email"></label>
+          <label>Email <input name="email" type="email" title="Enter a valid email address, such as name@example.com."></label>
           <label>Estimated start time <input name="estimatedStartTime" type="time"></label>
           <label>Inventory lead <select name="inventoryLeadId"><option value="">Select lead (optional)</option></select></label>
           <label>Part number count <input name="pieceCount" type="number" min="0" required></label>
@@ -120,8 +120,8 @@
         <div class="grid">
           <label>Group name <input name="clientName" required></label>
           <label>Contact name <input name="contactName"></label>
-          <label>Phone <input name="phone" type="tel"></label>
-          <label>Email <input name="email" type="email"></label>
+          <label>Phone <input name="phone" type="tel" inputmode="tel" pattern="(\+?1[ .-]?)?(\([0-9]{3}\)|[0-9]{3})[ .-]?[0-9]{3}[ .-]?[0-9]{4}" title="Enter a 10-digit number, such as 555-123-4567."></label>
+          <label>Email <input name="email" type="email" title="Enter a valid email address, such as name@example.com."></label>
           <label>
             Status
             <select name="status">
@@ -152,8 +152,8 @@
         <div class="grid">
           <label>First name <input name="firstName" required></label>
           <label>Last name <input name="lastName" required></label>
-          <label>Email <input name="email" type="email"></label>
-          <label>Phone <input name="phone" type="tel"></label>
+          <label>Email <input name="email" type="email" title="Enter a valid email address, such as name@example.com."></label>
+          <label>Phone <input name="phone" type="tel" inputmode="tel" pattern="(\+?1[ .-]?)?(\([0-9]{3}\)|[0-9]{3})[ .-]?[0-9]{3}[ .-]?[0-9]{4}" title="Enter a 10-digit number, such as 555-123-4567."></label>
         </div>
         <button type="submit">Save employee</button>
       </form>
@@ -166,9 +166,10 @@
         </p>
         <div class="grid">
           <label>Username <input name="username" autocomplete="username" required></label>
-          <label>Email <input name="email" type="email" autocomplete="email"></label>
-          <label>First name <input name="firstName" autocomplete="given-name"></label>
-          <label>Last name <input name="lastName" autocomplete="family-name"></label>
+          <label>Email <input name="email" type="email" autocomplete="email" title="Enter a valid email address, such as name@example.com."></label>
+          <label>First name <input name="firstName" autocomplete="given-name" required></label>
+          <label>Last name <input name="lastName" autocomplete="family-name" required></label>
+          <label>Phone <input name="phone" type="tel" inputmode="tel" autocomplete="tel" pattern="(\+?1[ .-]?)?(\([0-9]{3}\)|[0-9]{3})[ .-]?[0-9]{3}[ .-]?[0-9]{4}" title="Enter a 10-digit number, such as 555-123-4567."></label>
           <label>Password <input name="password" type="password" autocomplete="new-password" minlength="12" required></label>
           <label>Confirm password <input name="confirmPassword" type="password" autocomplete="new-password" minlength="12" required></label>
         </div>
