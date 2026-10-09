@@ -20,7 +20,13 @@
       </form>
     </main>
     <script>
-      document.querySelector('#login-form').addEventListener('submit', async event => {
+      const loginForm = document.querySelector('#login-form');
+      loginForm.querySelector('[name="password"]').addEventListener('keydown', event => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        loginForm.requestSubmit();
+      });
+      loginForm.addEventListener('submit', async event => {
         event.preventDefault();
         const error = document.querySelector('#login-error');
         error.textContent = '';

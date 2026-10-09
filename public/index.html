@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="calendar.css">
     <link rel="stylesheet" href="workweek.css">
+    <link rel="stylesheet" href="calendar-edit.css">
     <link rel="stylesheet" href="records.css">
   </head>
   <body>
@@ -193,6 +194,23 @@
         <div id="calendar-grid" class="calendar-grid" aria-live="polite"></div>
         <p id="calendar-detail" class="calendar-detail">Select an inventory to see its details.</p>
       </section>
+
+      <dialog id="schedule-edit-dialog" class="schedule-edit-dialog" aria-labelledby="schedule-edit-title">
+        <form id="schedule-edit-form">
+          <h2 id="schedule-edit-title">Edit scheduled inventory</h2>
+          <p id="schedule-edit-store" class="privacy-note"></p>
+          <div class="grid">
+            <label>Inventory date <input name="inventoryDate" type="date" required></label>
+            <label>Estimated start time <input name="estimatedStartTime" type="time"></label>
+            <label>Estimated duration (hours) <input name="estimatedDuration" type="number" step="0.01" min="0"></label>
+          </div>
+          <p id="schedule-edit-error" class="error" role="alert"></p>
+          <div class="schedule-edit-actions">
+            <button id="schedule-edit-cancel" type="button" class="secondary-button">Cancel</button>
+            <button type="submit">Save schedule</button>
+          </div>
+        </form>
+      </dialog>
 
       <section id="chart" class="form-card">
         <div class="chart-heading">

@@ -1,5 +1,7 @@
 const notice = document.querySelector('#notice');
-const forms = [...document.querySelectorAll('form')];
+const forms = [...document.querySelectorAll('form:not(#schedule-edit-form)')];
+const scheduleEditDialog = document.querySelector('#schedule-edit-dialog');
+const scheduleEditForm = document.querySelector('#schedule-edit-form');
 let calendarEvents = [];
 let calendarCursor = new Date();
 let calendarView = 'month';
@@ -387,8 +389,44 @@ document.querySelector('#calendar-grid').addEventListener('click', event => {
   if (!button) return;
   const inventory = calendarEvents.find(item => item.id === button.dataset.id);
   if (!inventory) return;
+  if (inventory.status === 'Scheduled') {
+    scheduleEditForm.dataset.inventoryId = inventory.id;
+    scheduleEditForm.elements.namedItem('inventoryDate').value = inventory.date || '';
+    scheduleEditForm.elements.namedItem('estimatedStartTime').value = inventory.estimatedStartTime ? inventory.estimatedStartTime.slice(0, 5) : '';
+    scheduleEditForm.elements.namedItem('estimatedDuration').value = inventory.estimatedDuration || '';
+    document.querySelector('#schedule-edit-store').textContent = inventory.store;
+    document.querySelector('#schedule-edit-error').textContent = '';
+    scheduleEditDialog.showModal();
+    return;
+  }
   const schedule = inventory.status === 'Scheduled' ? `${inventory.estimatedStartTime ? ` · Starts ${inventory.estimatedStartTime.slice(0, 5)}` : ''}${inventory.estimatedDuration ? ` · Estimated ${inventory.estimatedDuration} hours` : ''}` : '';
   document.querySelector('#calendar-detail').textContent = `${inventory.date} · ${inventory.store} · ${inventory.status}${schedule} · ${inventory.pieceCount || 0} pieces · $${inventory.totalValue || '0.00'} · Discount: ${inventory.discount || 0}${inventory.lead ? ` · Lead: ${inventory.lead}` : ''}`;
+});
+
+document.querySelector('#schedule-edit-cancel').addEventListener('click', () => scheduleEditDialog.close());
+scheduleEditForm.addEventListener('submit', async event => {
+  event.preventDefault();
+  const error = document.querySelector('#schedule-edit-error');
+  const submit = scheduleEditForm.querySelector('[type="submit"]');
+  submit.disabled = true;
+  error.textContent = '';
+  try {
+    const response = await fetch(`/api/schedule-inventory/${scheduleEditForm.dataset.inventoryId}`, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(Object.fromEntries(new FormData(scheduleEditForm))),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Could not update the scheduled inventory.');
+    scheduleEditDialog.close();
+    notice.textContent = data.message;
+    notice.className = 'success';
+    await loadCalendar();
+  } catch (requestError) {
+    error.textContent = requestError.message;
+  } finally {
+    submit.disabled = false;
+  }
 });
 
 document.querySelector('#update-chart').addEventListener('click', loadStoreChart);

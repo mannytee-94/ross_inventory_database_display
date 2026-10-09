@@ -3,7 +3,7 @@
 import os
 import re
 import subprocess
-from datetime import date
+from datetime import date, time
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
@@ -128,6 +128,19 @@ def inventory_status(data):
     return value
 
 
+def estimated_start_time(data):
+    """Validate and return an optional inventory start time."""
+    value = data.get("estimatedStartTime")
+    if value is None or str(value).strip() == "":
+        return None
+    value = str(value).strip()
+    try:
+        time.fromisoformat(value)
+    except ValueError:
+        raise ValueError("Estimated start time must be a valid time.")
+    return value
+
+
 def rows(sql, fields):
     return [dict(zip(fields, line.split("\t"))) for line in mysql(sql).splitlines() if line]
 
@@ -217,7 +230,7 @@ def values_for(record_type, data):
             integer(data, "storeId", True),
             esc(data.get("partsManager")),
             esc(data.get("controllerName")),
-            esc(data.get("estimatedStartTime")),
+            esc(estimated_start_time(data)),
             esc(inventory_date),
             integer(data, "pieceCount", True),
             money(data, "totalValue"),
@@ -286,7 +299,7 @@ def schedule_values(data):
         esc(data.get("partsManager")),
         esc(data.get("controllerName")),
         esc(email_address(data)),
-        esc(data.get("estimatedStartTime")),
+        esc(estimated_start_time(data)),
         esc(inventory_date),
         money(data, "estimatedDuration"),
         esc(data.get("computerSystem")),
@@ -405,6 +418,34 @@ def schedule_inventory():
             + ")"
         )
         return jsonify(message="Inventory scheduled successfully."), 201
+    except ValueError as exc:
+        return error(exc)
+
+
+@app.put("/api/schedule-inventory/<int:inventory_id>")
+def update_scheduled_inventory(inventory_id):
+    """Update the calendar fields for an inventory that is still scheduled."""
+    try:
+        data = request.get_json(silent=True) or {}
+        inventory_date = required(data, "inventoryDate")
+        date.fromisoformat(inventory_date)
+        start_time = estimated_start_time(data)
+        duration = money(data, "estimatedDuration")
+        existing = rows(
+            f"SELECT Status FROM inventory WHERE InventoryId = {inventory_id}", ["status"]
+        )
+        if not existing:
+            return error("Scheduled inventory not found.", 404)
+        if existing[0]["status"] != "Scheduled":
+            return error("Only scheduled inventories can be changed from the calendar.")
+        mysql(
+            "UPDATE inventory SET "
+            + f"InventoryDate = {esc(inventory_date)}, "
+            + f"EstimatedStartTime = {esc(start_time)}, "
+            + f"EstimatedDuration = {str(duration) if duration is not None else 'NULL'} "
+            + f"WHERE InventoryId = {inventory_id}"
+        )
+        return jsonify(message="Scheduled inventory updated successfully.")
     except ValueError as exc:
         return error(exc)
 
