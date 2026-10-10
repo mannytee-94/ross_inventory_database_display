@@ -1,0 +1,9 @@
+services:
+  ross-inventory-entry:
+    build: .
+    container_name: ross-inventory-entry
+    restart: unless-stopped
+    env_file:
+      - .env.synology
+    ports:
+      - "8081:8081"

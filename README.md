@@ -23,9 +23,43 @@ Open http://localhost:8081 in your browser. Press `Control-C` in the terminal to
 
 The app requires a username and password from the `user` table before showing inventory data. Password hashes are verified server-side and never sent to the browser. Set a persistent, random `FLASK_SECRET_KEY` before deployment so login sessions survive application restarts.
 
-## Container deployment
+## Synology DS1825+ Container Manager setup
 
-The included `Dockerfile` builds the Flask app and its MySQL/MariaDB client. In Synology Container Manager, publish container port `8081` and set `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_DATABASE`, `MYSQL_USER`, and `MYSQL_PASSWORD` as environment variables. Point DSM's reverse proxy at port `8081`.
+You need only **one new container**: this Flask app. Keep using the MariaDB package already installed on the Synology. Apache, Nginx, and a MariaDB container are not required.
+
+1. Copy this entire `ross-inventory-entry` folder to a Synology shared folder, for example `/volume1/docker/ross-inventory-entry`.
+2. In that folder, copy `.env.synology.example` to `.env.synology` and set the database password plus a long random `FLASK_SECRET_KEY`.
+   - Set `MYSQL_HOST` to the Synology's LAN IP or DNS name, such as `192.168.1.50`. Do **not** use `127.0.0.1`: from inside the container, that address points back to the container itself.
+   - Set `MYSQL_PORT` to the port configured for the installed MariaDB package. Confirm it in the package settings; common installations use `3306` or `3307`.
+3. Create a MariaDB login for the app. Run the following once as a MariaDB administrator, replacing the password:
+
+   ```sql
+   CREATE USER 'ross_inventory_app'@'%' IDENTIFIED BY 'choose-a-long-database-password';
+   GRANT SELECT, INSERT, UPDATE ON ross_inventories.* TO 'ross_inventory_app'@'%';
+   FLUSH PRIVILEGES;
+   ```
+
+   This account has only the permissions the web app needs. Keep MariaDB's external network access disabled unless you specifically need it.
+4. In DSM, open **Container Manager** → **Project** → **Create**. Choose the copied folder and select `docker-compose.yml`. Create/start the project. Container Manager builds the included `Dockerfile` and starts `ross-inventory-entry` automatically.
+5. Open `http://<your-synology-ip>:8081` from your network, for example `http://192.168.1.50:8081`.
+
+The project publishes only port `8081`. If you want HTTPS or a friendly name later, add a DSM reverse-proxy rule that forwards a hostname to `http://127.0.0.1:8081`.
+
+### If the app cannot reach MariaDB
+
+The MariaDB package must listen for TCP connections on the NAS LAN interface so the container can reach the `MYSQL_HOST` address. If the app reports a database connection error, verify the MariaDB port, its bind/listen setting, and any DSM firewall rule. Limit MariaDB access to the NAS itself and your trusted LAN; it does not need to be exposed to the internet.
+
+### Optional SSH command
+
+If you prefer SSH over the DSM interface, run this from the project folder after creating `.env.synology`:
+
+```sh
+docker compose up -d --build
+```
+
+### Database migrations
+
+Apply the migration files supplied in `migrations/` once to the existing `ross_inventories` database before using the fields they add. Run migrations with a MariaDB administrator account; the restricted application account above intentionally cannot alter tables.
 
 ## Included forms
 
