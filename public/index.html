@@ -63,6 +63,8 @@
           <label>Write-in count <input name="writeInCount" type="number"></label>
           <label>Discount <input name="discount" type="number" step="1" value="0"></label>
           <label>Inventory cost <input name="inventoryCost" type="number" step="0.01" min="0" value="0.00" required></label>
+          <label>Actual start time <input name="actualStartTime" type="time"></label>
+          <label>Actual end time <input name="actualEndTime" type="time"></label>
           <label>Hours worked actual <input name="hoursWorkedActual" type="number" step="0.01" min="0"></label>
           <label>Crew size <input name="crewSize" type="number" min="0"></label>
           <label>Type <input name="type" value="Inventory"></label>
@@ -87,6 +89,8 @@
           <label>Controller name <input name="controllerName"></label>
           <label>Email <input name="email" type="email" title="Enter a valid email address, such as name@example.com."></label>
           <label>Estimated start time <input name="estimatedStartTime" type="time"></label>
+          <label>Actual start time <input name="actualStartTime" type="time"></label>
+          <label>Actual end time <input name="actualEndTime" type="time"></label>
           <label>Inventory lead <select name="inventoryLeadId"><option value="">Select lead (optional)</option></select></label>
           <label>Part number count <input name="pieceCount" type="number" min="0" required></label>
           <label>Total value (parts) <input name="totalValue" type="number" step="0.01" min="0"></label>
@@ -207,6 +211,7 @@
           <p id="schedule-edit-error" class="error" role="alert"></p>
           <div class="schedule-edit-actions">
             <button id="schedule-edit-cancel" type="button" class="secondary-button">Cancel</button>
+            <button id="schedule-edit-complete" type="button" class="secondary-button">Complete inventory</button>
             <button type="submit">Save schedule</button>
           </div>
         </form>

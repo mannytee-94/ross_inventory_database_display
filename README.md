@@ -91,4 +91,6 @@ Apply `migrations/007_rename_estimated_duration_and_add_start_time.sql` once to 
 Apply `migrations/005_add_inventory_sheet_counts_and_page_break.sql` once to add `CountsShowingOnSheets` and `PageBreak` to inventory records.
 
 Apply `migrations/006_add_inventory_travel_time_and_email.sql` once to add `TravelTime` and `Email` to inventory records.
+
+Apply `migrations/008_add_inventory_actual_times.sql` once to add `ActualStartTime` and `ActualEndTime` to inventory records.
 # ross_inventory_database_display

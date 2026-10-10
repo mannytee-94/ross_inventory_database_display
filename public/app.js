@@ -404,6 +404,20 @@ document.querySelector('#calendar-grid').addEventListener('click', event => {
 });
 
 document.querySelector('#schedule-edit-cancel').addEventListener('click', () => scheduleEditDialog.close());
+document.querySelector('#schedule-edit-complete').addEventListener('click', async () => {
+  const inventoryId = scheduleEditForm.dataset.inventoryId;
+  scheduleEditDialog.close();
+  document.querySelector('main > nav button[data-form="complete"]').click();
+  try {
+    await refreshOptions();
+    const scheduledInventory = document.querySelector('#complete [name="scheduledInventoryId"]');
+    scheduledInventory.value = inventoryId;
+    scheduledInventory.dispatchEvent(new Event('change'));
+  } catch (error) {
+    notice.textContent = error.message;
+    notice.className = 'error';
+  }
+});
 scheduleEditForm.addEventListener('submit', async event => {
   event.preventDefault();
   const error = document.querySelector('#schedule-edit-error');

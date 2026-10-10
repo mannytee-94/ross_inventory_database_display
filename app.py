@@ -128,17 +128,21 @@ def inventory_status(data):
     return value
 
 
-def estimated_start_time(data):
-    """Validate and return an optional inventory start time."""
-    value = data.get("estimatedStartTime")
+def inventory_time(data, field_name, label):
+    """Validate and return an optional inventory time field."""
+    value = data.get(field_name)
     if value is None or str(value).strip() == "":
         return None
     value = str(value).strip()
     try:
         time.fromisoformat(value)
     except ValueError:
-        raise ValueError("Estimated start time must be a valid time.")
+        raise ValueError(f"{label} must be a valid time.")
     return value
+
+
+def estimated_start_time(data):
+    return inventory_time(data, "estimatedStartTime", "Estimated start time")
 
 
 def rows(sql, fields):
@@ -185,10 +189,10 @@ FIELDS = {
     ),
     "inventory": tuple(
         zip(
-            "StoreId,PartsManager,ControllerName,EstimatedStartTime,InventoryDate,PieceCount,TotalValue,TotalValueItem,VarianceCount,VarianceDollarAmount,WriteInCount,Discount,InventoryCost,InventoryLeadId,HoursWorkedActual,EstimatedDuration,CrewSize,Status,Notes,Type,ComputerSystem,CountsShowingOnSheets,PageBreak,TravelTime,Email".split(
+            "StoreId,PartsManager,ControllerName,EstimatedStartTime,ActualStartTime,ActualEndTime,InventoryDate,PieceCount,TotalValue,TotalValueItem,VarianceCount,VarianceDollarAmount,WriteInCount,Discount,InventoryCost,InventoryLeadId,HoursWorkedActual,EstimatedDuration,CrewSize,Status,Notes,Type,ComputerSystem,CountsShowingOnSheets,PageBreak,TravelTime,Email".split(
                 ","
             ),
-            "storeId,partsManager,controllerName,estimatedStartTime,inventoryDate,pieceCount,totalValue,totalValueItem,varianceCount,varianceDollarAmount,writeInCount,discount,inventoryCost,inventoryLeadId,hoursWorkedActual,estimatedDuration,crewSize,status,notes,type,computerSystem,countsShowingOnSheets,pageBreak,travelTime,email".split(
+            "storeId,partsManager,controllerName,estimatedStartTime,actualStartTime,actualEndTime,inventoryDate,pieceCount,totalValue,totalValueItem,varianceCount,varianceDollarAmount,writeInCount,discount,inventoryCost,inventoryLeadId,hoursWorkedActual,estimatedDuration,crewSize,status,notes,type,computerSystem,countsShowingOnSheets,pageBreak,travelTime,email".split(
                 ","
             ),
         )
@@ -231,6 +235,8 @@ def values_for(record_type, data):
             esc(data.get("partsManager")),
             esc(data.get("controllerName")),
             esc(estimated_start_time(data)),
+            esc(inventory_time(data, "actualStartTime", "Actual start time")),
+            esc(inventory_time(data, "actualEndTime", "Actual end time")),
             esc(inventory_date),
             integer(data, "pieceCount", True),
             money(data, "totalValue"),
@@ -319,6 +325,8 @@ def complete_assignments(data):
         ("Discount", integer(data, "discount") or 0),
         ("InventoryCost", money(data, "inventoryCost", True)),
         ("InventoryLeadId", integer(data, "inventoryLeadId")),
+        ("ActualStartTime", esc(inventory_time(data, "actualStartTime", "Actual start time"))),
+        ("ActualEndTime", esc(inventory_time(data, "actualEndTime", "Actual end time"))),
         ("HoursWorkedActual", money(data, "hoursWorkedActual")),
         ("CrewSize", integer(data, "crewSize")),
         ("Type", esc(data.get("type") or "Inventory")),
@@ -478,7 +486,7 @@ def records():
                 ["ID", "First name", "Last name", "Email", "Phone", "Active"],
             ),
             inventories=rows(
-                "SELECT i.InventoryId, s.StoreName, i.PartsManager, i.ControllerName, i.InventoryDate, i.EstimatedStartTime, i.PieceCount, i.TotalValue, i.TotalValueItem, i.VarianceCount, i.VarianceDollarAmount, i.WriteInCount, i.Discount, i.InventoryCost, CONCAT(e.FirstName, ' ', e.LastName), i.HoursWorkedActual, i.EstimatedDuration, i.CrewSize, i.Status, i.Type, i.ComputerSystem, i.Notes, IF(i.CountsShowingOnSheets = 1, 'Yes', 'No'), i.PageBreak, i.TravelTime, i.Email FROM inventory i JOIN store s ON s.StoreId = i.StoreId LEFT JOIN employee e ON e.EmployeeId = i.InventoryLeadId ORDER BY i.InventoryDate DESC, i.InventoryId DESC",
+                "SELECT i.InventoryId, s.StoreName, i.PartsManager, i.ControllerName, i.InventoryDate, i.EstimatedStartTime, i.ActualStartTime, i.ActualEndTime, i.PieceCount, i.TotalValue, i.TotalValueItem, i.VarianceCount, i.VarianceDollarAmount, i.WriteInCount, i.Discount, i.InventoryCost, CONCAT(e.FirstName, ' ', e.LastName), i.HoursWorkedActual, i.EstimatedDuration, i.CrewSize, i.Status, i.Type, i.ComputerSystem, i.Notes, IF(i.CountsShowingOnSheets = 1, 'Yes', 'No'), i.PageBreak, i.TravelTime, i.Email FROM inventory i JOIN store s ON s.StoreId = i.StoreId LEFT JOIN employee e ON e.EmployeeId = i.InventoryLeadId ORDER BY i.InventoryDate DESC, i.InventoryId DESC",
                 [
                     "ID",
                     "Store",
@@ -486,6 +494,8 @@ def records():
                     "Controller name",
                     "Date",
                     "Estimated start time",
+                    "Actual start time",
+                    "Actual end time",
                     "Part number count",
                     "Total value (parts)",
                     "Total value",
